@@ -19,3 +19,7 @@ __pycache__/
 # NOT committed to the public repo. Remove these lines only to publish them.
 server/data/*.npy
 server/data/*.json
+
+# ComfyUI node vectors — delivered to licensed customers, not public
+comfyui/data/*.npy
+comfyui/data/*.json

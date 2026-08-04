@@ -252,6 +252,27 @@ The Studio gallery reads them directly from `FVL_OUTPUT_DIR`, which is mounted
 into both containers. Apply the customer's normal retention policy to that
 directory.
 
+## Updating
+
+Update Frosty VL's **framework code only** with the bundled updater:
+
+```bash
+bash scripts/update.sh          # update if a newer version is published
+bash scripts/update.sh --force  # pull and rebuild regardless of version
+```
+
+It prints the current `VERSION`, checks the latest published `VERSION`, and if a
+newer one exists (or `--force` is given) runs `git pull --ff-only`, then rebuilds
+and restarts the Studio (`docker compose build --pull` → preflight →
+`docker compose up -d`). Steps that need Docker are skipped gracefully with
+guidance if Docker or Compose is absent.
+
+To also update the ComfyUI node, set `FVL_COMFYUI_DIR` to your ComfyUI root; the
+node is synced into `$FVL_COMFYUI_DIR/custom_nodes/frosty-vl`. The updater
+**never** touches your base model weights or your steering vector files
+(`comfyui/data/*.npy`, `comfyui/data/*.json`, `server/data/*`) — those are
+preserved.
+
 ## Troubleshooting bundle
 
 Collect these when opening a support request:

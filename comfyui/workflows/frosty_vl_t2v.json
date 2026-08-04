@@ -1,0 +1,155 @@
+{
+  "id": "frosty-vl-t2v",
+  "name": "Frosty VL — Text to Video",
+  "description": "ComfyUI Qwen3-VL T2V graph with the Frosty VL persona-steering node. Load a pre-patched text encoder (Path A) OR keep your own bf16 text encoder and toggle the FrostyVLPersonaSteering node (Path B). Bring your own Qwen3-VL model; on-disk weights are never modified.",
+  "last_node_id": 12,
+  "last_link_id": 13,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "CLIPLoader",
+      "pos": [-1400, 300],
+      "size": [300, 106],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [{"name": "CLIP", "type": "CLIP", "links": [1]}],
+      "widgets_values": ["qwen3vl_text_encoder_bf16.safetensors", "minimax"],
+      "properties": {"Node name for S&R": "CLIPLoader"}
+    },
+    {
+      "id": 2,
+      "type": "FrostyVLPersonaSteering",
+      "pos": [-1030, 280],
+      "size": [320, 160],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [{"name": "clip", "type": "CLIP", "link": 1}],
+      "outputs": [
+        {"name": "clip", "type": "CLIP", "links": [3]},
+        {"name": "summary", "type": "STRING", "links": null}
+      ],
+      "widgets_values": [true, true, 3.0, "40-49"],
+      "properties": {"Node name for S&R": "FrostyVLPersonaSteering"}
+    },
+    {
+      "id": 3,
+      "type": "UNETLoader",
+      "pos": [-1400, 500],
+      "size": [300, 106],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [{"name": "MODEL", "type": "MODEL", "links": [4]}],
+      "widgets_values": ["text_to_video_dit_bf16.safetensors", "default"],
+      "properties": {"Node name for S&R": "UNETLoader"}
+    },
+    {
+      "id": 4,
+      "type": "VAELoader",
+      "pos": [-1400, 700],
+      "size": [300, 82],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [{"name": "VAE", "type": "VAE", "links": [5]}],
+      "widgets_values": ["video_vae_fp16.safetensors"],
+      "properties": {"Node name for S&R": "VAELoader"}
+    },
+    {
+      "id": 5,
+      "type": "CLIPTextEncode",
+      "pos": [-1030, 500],
+      "size": [300, 220],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [{"name": "clip", "type": "CLIP", "link": 3}],
+      "outputs": [{"name": "CONDITIONING", "type": "CONDITIONING", "links": [6]}],
+      "widgets_values": ["a cinematic close-up, warm rim light, expressive and bold, trending on artstation"],
+      "properties": {"Node name for S&R": "CLIPTextEncode"}
+    },
+    {
+      "id": 6,
+      "type": "ResolutionSelector",
+      "pos": [-1400, 900],
+      "size": [270, 170],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {"name": "width", "type": "INT", "links": [7]},
+        {"name": "height", "type": "INT", "links": [8]}
+      ],
+      "widgets_values": ["16:9 (Widescreen)", 0.4, 32],
+      "properties": {"Node name for S&R": "ResolutionSelector"}
+    },
+    {
+      "id": 7,
+      "type": "MiniMaxH3Sampler",
+      "pos": [-640, 420],
+      "size": [420, 380],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {"name": "model", "type": "MODEL", "link": 4},
+        {"name": "conditioning", "type": "CONDITIONING", "link": 6},
+        {"name": "vae", "type": "VAE", "link": 5},
+        {"name": "width", "type": "INT", "link": 7},
+        {"name": "height", "type": "INT", "link": 8}
+      ],
+      "outputs": [{"name": "samples", "type": "LATENT", "links": [9]}],
+      "widgets_values": [16, 42, 15.0, 1.0],
+      "properties": {"Node name for S&R": "MiniMaxH3Sampler"}
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [-180, 460],
+      "size": [200, 46],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {"name": "samples", "type": "LATENT", "link": 9},
+        {"name": "vae", "type": "VAE", "link": 5}
+      ],
+      "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [10]}],
+      "properties": {"Node name for S&R": "VAEDecode"}
+    },
+    {
+      "id": 9,
+      "type": "SaveVideo",
+      "pos": [80, 420],
+      "size": [420, 100],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [{"name": "images", "type": "IMAGE", "link": 10}],
+      "outputs": [],
+      "widgets_values": ["video/FrostyVL", "auto", "auto"],
+      "properties": {"Node name for S&R": "SaveVideo"}
+    }
+  ],
+  "links": [
+    [1, 1, 1, 2, "CLIP"],
+    [3, 2, 2, 5, "CLIP"],
+    [4, 3, 3, 7, "MODEL"],
+    [5, 4, 4, 7, "VAE"],
+    [6, 5, 5, 7, "CONDITIONING"],
+    [7, 6, 6, 7, "INT"],
+    [8, 6, 6, 7, "INT"],
+    [9, 7, 7, 8, "LATENT"],
+    [10, 8, 8, 9, "IMAGE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

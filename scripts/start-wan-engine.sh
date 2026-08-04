@@ -17,6 +17,6 @@ fi
 
 frost_host=${FROST_HOST:-127.0.0.1}
 frost_port=${FROST_PORT:-8902}
-frost_venv=${FROST_VENV:-$HOME/h3-venv}
+frost_venv=${FROST_VENV:-$HOME/frosty-vl-venv}
 exec "$frost_venv/bin/python" -m uvicorn wan_serve:app \
   --app-dir "$bundle_dir/server" --host "$frost_host" --port "$frost_port"
