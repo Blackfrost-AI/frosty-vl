@@ -1,3 +1,5 @@
+![Frosty VL](assets/frosty-vl-hero.png)
+
 # Frosty VL — a universal, multi-engine video Studio
 
 Frosty VL is a **universal, multi-engine video Studio** by Blackfrost — one API and
