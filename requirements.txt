@@ -1,0 +1,18 @@
+# PyTorch is intentionally not pinned here. Install a CUDA/PyTorch build that
+# supports the customer's B200 driver stack before installing this file.
+accelerate
+av
+fastapi
+ftfy
+huggingface_hub
+imageio
+imageio-ffmpeg
+numpy
+pillow
+requests
+transformers
+uvicorn[standard]
+
+# Required separately (not on main/release in the as-built environment):
+# python -m pip install \
+#   'git+https://github.com/huggingface/diffusers.git@abc5e9bf71fd38f53cd471bc3acaa84bc5ecbfdc'

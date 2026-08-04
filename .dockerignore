@@ -1,0 +1,11 @@
+.DS_Store
+.git
+**/__pycache__
+**/*.pyc
+*.tar.gz
+*.sha256
+SHA256SUMS
+.env
+config/*.env
+models
+outputs

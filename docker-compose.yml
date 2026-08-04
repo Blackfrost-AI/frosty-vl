@@ -1,0 +1,111 @@
+services:
+  frosty-vl-server:
+    build:
+      context: .
+      args:
+        BASE_IMAGE: ${FVL_BASE_IMAGE:-nvcr.io/nvidia/pytorch:26.07-py3}
+    image: blackfrost/frosty-vl:2026.08.04
+    restart: unless-stopped
+    ipc: host
+    shm_size: 64gb
+    ports:
+      - "${FVL_API_BIND:-127.0.0.1}:${FVL_PORT:-8899}:8899"
+    environment:
+      FVL_MODEL: /models/base-pipeline
+      FVL_REFUSAL_DIR: /app/server/data/refusal_dir_L50.npy
+      FVL_SAFETY_DIR: /app/server/data/safety_dir_L50.npy
+      FVL_ABL_START: "40"
+      FVL_ABL_END: "49"
+      FVL_ABL_LAM: ${FVL_ABL_LAM:-3.0}
+      # safe release — golden-safety floor ON
+      FVL_SAFETY_LAM: ${FVL_SAFETY_LAM:-3.0}
+      FVL_SERVE_OUT: /outputs
+      FVL_DEVICE: cuda:0
+      FVL_REF_DEVICE: cuda:1
+      FVL_MODEL_ID: frosty-vl
+      FVL_PUBLIC_BASE: ${FVL_PUBLIC_BASE:-http://127.0.0.1:8899}
+    volumes:
+      - type: bind
+        source: ${FVL_MODEL_DIR:?set FVL_MODEL_DIR in .env}
+        target: /models/base-pipeline
+        read_only: true
+      - type: bind
+        source: ${FVL_OUTPUT_DIR:?set FVL_OUTPUT_DIR in .env}
+        target: /outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${FVL_FL_GPU:-0}", "${FVL_REF_GPU:-1}"]
+              capabilities: [gpu]
+    ulimits:
+      memlock: -1
+      stack: 67108864
+
+  frosty-vl-studio:
+    image: blackfrost/frosty-vl:2026.08.04
+    restart: unless-stopped
+    depends_on:
+      frosty-vl-server:
+        condition: service_healthy
+    command: ["python", "/app/ui/webui.py"]
+    ports:
+      - "${FVL_UI_BIND:-127.0.0.1}:${FVL_UI_PORT:-8890}:8890"
+    environment:
+      FVL_BASE: http://frosty-vl-server:8899
+      FVL_UI_HOST: 0.0.0.0
+      FVL_UI_PORT: "8890"
+      FVL_GEN_TIMEOUT: ${FVL_GEN_TIMEOUT:-2400}
+      FVL_FFMPEG: /usr/bin/ffmpeg
+      FVL_GALLERY_DIR: /outputs
+      FVL_GALLERY_LIMIT: ${FVL_GALLERY_LIMIT:-200}
+      FVL_ENGINES_FILE: /app/config/engines.docker.json
+    volumes:
+      - type: bind
+        source: ${FVL_OUTPUT_DIR:?set FVL_OUTPUT_DIR in .env}
+        target: /outputs
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8890/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  frosty-wan:
+    profiles: ["wan"]
+    build:
+      context: .
+      args:
+        BASE_IMAGE: ${FVL_BASE_IMAGE:-nvcr.io/nvidia/pytorch:26.07-py3}
+    image: blackfrost/frosty-vl:2026.08.04
+    restart: unless-stopped
+    ipc: host
+    shm_size: 32gb
+    command: ["python", "-m", "uvicorn", "wan_serve:app", "--app-dir", "/app/server", "--host", "0.0.0.0", "--port", "8902"]
+    environment:
+      FROST_MODEL: /models/wan
+      FROST_MODEL_ID: wan22-ti2v-5b
+      FROST_DEVICE: cuda:0
+      FROST_OUTPUT_DIR: /outputs
+      FROST_OFFLINE: "1"
+    volumes:
+      - type: bind
+        source: ${FVL_WAN_MODEL_DIR:-/srv/frosty-vl/models/Wan2.2-TI2V-5B-Diffusers}
+        target: /models/wan
+        read_only: true
+      - type: bind
+        source: ${FVL_OUTPUT_DIR:?set FVL_OUTPUT_DIR in .env}
+        target: /outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${FVL_WAN_GPU:-2}"]
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8902/health | grep -q '\"ready\":true'"]
+      interval: 15s
+      timeout: 5s
+      start_period: 5m
+      retries: 20
