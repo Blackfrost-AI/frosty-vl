@@ -209,7 +209,7 @@ def compose_steering(W, lam: float, backend=None,
                      safety_dir: Optional[str] = None,
                      enable_refusal: bool = True,
                      enable_safety: bool = True):
-    """Apply BOTH steering passes to a single o_proj matrix, in serve_h3 order:
+    """Apply BOTH steering passes to a single o_proj matrix, in server order:
     refusal first, then safety (each SUBTRACT, same lam). Returns edited W.
     """
     if backend is None:

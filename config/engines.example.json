@@ -12,18 +12,13 @@
       }
     },
     {
-      "id": "wan22-ti2v-5b",
-      "label": "Wan 2.2 TI2V 5B",
+      "id": "pristine-base",
+      "label": "Pristine base (no projections)",
       "base": "http://127.0.0.1:8902",
-      "description": "Fast Apache-2.0 text and image-to-video engine at up to 720p.",
-      "capabilities": ["text_to_video", "image_to_video", "scene_lab"],
+      "description": "The untouched base checkpoint for direct audio and behavior comparisons.",
+      "capabilities": ["text_to_video", "image_to_video", "native_audio", "scene_lab"],
       "controls": {
-        "durations": [2, 3, 5],
-        "resolutions": ["480p", "720p"],
-        "aspect_ratios": ["16:9", "9:16", "1:1"],
-        "steps": {"min": 4, "max": 60, "default": 30},
-        "guidance": {"min": 1.0, "max": 10.0, "step": 0.5, "default": 5.0},
-        "negative_prompt": true
+        "durations": [5, 8, 10, 12, 14]
       }
     }
   ]

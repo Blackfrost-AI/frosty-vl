@@ -139,7 +139,7 @@ class FrostyVLPersonaSteering:
                 if obj is not None:
                     candidates.append(obj)
             candidates.append(cm)
-        # Raw access via .model.language_model (serve_h3 path)
+        # Raw access via .model.language_model (server path)
         raw = getattr(clip, "model", None)
         if raw is not None:
             candidates.append(raw)

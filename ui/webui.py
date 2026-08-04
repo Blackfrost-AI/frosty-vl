@@ -4,11 +4,11 @@
 Runs beside the render server and supports text/image-to-video, optional
 same-person references, multi-scene movie jobs, and a persistent output gallery.
 
-    python3 ~/craig/bin/webui.py
+    python3 ui/webui.py
     # http://localhost:8890
 
 Env: FVL_BASE, FVL_UI_HOST, FVL_UI_PORT, FVL_GEN_TIMEOUT, FVL_FFMPEG,
-FVL_GALLERY_DIR. Legacy H3_* names remain accepted by the current development VM.
+FVL_GALLERY_DIR, FVL_ENGINES_FILE, FVL_GALLERY_LIMIT.
 """
 import base64
 import json
@@ -26,16 +26,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
-FVL_BASE = (os.environ.get("FVL_BASE") or os.environ.get("H3_BASE") or "http://127.0.0.1:8899").rstrip("/")
-UI_HOST = os.environ.get("FVL_UI_HOST") or os.environ.get("H3_UI_HOST") or "127.0.0.1"
-UI_PORT = int(os.environ.get("FVL_UI_PORT") or os.environ.get("H3_UI_PORT") or "8890")
-GEN_TIMEOUT = int(os.environ.get("FVL_GEN_TIMEOUT") or os.environ.get("H3_GEN_TIMEOUT") or "2400")
-FFMPEG = os.environ.get("FVL_FFMPEG") or os.environ.get("H3_FFMPEG") or "/usr/bin/ffmpeg"
+FVL_BASE = (os.environ.get("FVL_BASE") or "http://127.0.0.1:8899").rstrip("/")
+UI_HOST = os.environ.get("FVL_UI_HOST") or "127.0.0.1"
+UI_PORT = int(os.environ.get("FVL_UI_PORT") or "8890")
+GEN_TIMEOUT = int(os.environ.get("FVL_GEN_TIMEOUT") or "2400")
+FFMPEG = os.environ.get("FVL_FFMPEG") or "/usr/bin/ffmpeg"
 _GALLERY_VALUE = (
     os.environ.get("FVL_GALLERY_DIR")
-    or os.environ.get("H3_GALLERY_DIR")
     or os.environ.get("FVL_SERVE_OUT")
-    or os.environ.get("H3_SERVE_OUT")
 )
 GALLERY_DIR = Path(_GALLERY_VALUE).expanduser().resolve() if _GALLERY_VALUE else None
 GALLERY_LIMIT = max(1, min(500, int(os.environ.get("FVL_GALLERY_LIMIT", "200"))))
@@ -44,7 +42,7 @@ if GALLERY_DIR:
 
 
 def _load_engines():
-    config_path = os.environ.get("FVL_ENGINES_FILE") or os.environ.get("H3_ENGINES_FILE")
+    config_path = os.environ.get("FVL_ENGINES_FILE")
     data = None
     if config_path:
         try:
@@ -132,6 +130,7 @@ def _record_gallery_metadata(name, metadata):
         if key in {
             "prompt", "seed", "mode", "duration_seconds", "scenes", "engine_id", "engine_label",
             "resolution", "aspect_ratio", "num_inference_steps", "guidance_scale",
+            "prompt_format",
         }
         and isinstance(value, (str, int, float, bool, list, type(None)))
     }
@@ -177,6 +176,7 @@ def _gallery_items():
                 "size": stat.st_size,
                 "created_at": created_at,
                 "prompt": str(metadata.get("prompt") or ""),
+                "prompt_format": str(metadata.get("prompt_format") or "text"),
                 "seed": metadata.get("seed"),
                 "mode": str(metadata.get("mode") or "saved video"),
                 "duration_seconds": metadata.get("duration_seconds"),
@@ -197,6 +197,48 @@ def _content_type_for(name):
         if name.lower().endswith(ext):
             return content_type
     return "application/octet-stream"
+
+
+def _normalize_prompt(request):
+    """Return canonical prompt text and its declared format.
+
+    The engine's native API accepts prompt text. Structured mode therefore
+    validates a JSON object and serializes it as readable JSON text rather than
+    pretending its fields are separate generation parameters.
+    """
+    prompt_format = str(request.get("prompt_format") or "text").strip().lower()
+    if prompt_format not in ("text", "json"):
+        raise ValueError("prompt format must be text or json")
+    raw_prompt = request.get("prompt")
+    if prompt_format == "json":
+        if isinstance(raw_prompt, dict):
+            structured = raw_prompt
+        elif isinstance(raw_prompt, str):
+            if not raw_prompt.strip():
+                raise ValueError("empty JSON prompt")
+            try:
+                structured = json.loads(raw_prompt)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "invalid JSON prompt at line %d, column %d: %s"
+                    % (exc.lineno, exc.colno, exc.msg)
+                ) from exc
+        else:
+            raise ValueError("JSON prompt must be an object")
+        if not isinstance(structured, dict):
+            raise ValueError("JSON prompt must be an object")
+        if not structured:
+            raise ValueError("JSON prompt cannot be empty")
+        prompt = json.dumps(structured, ensure_ascii=False, indent=2)
+    else:
+        if not isinstance(raw_prompt, str):
+            raise ValueError("text prompt must be a string")
+        prompt = raw_prompt.strip()
+        if not prompt:
+            raise ValueError("empty prompt")
+    if len(prompt) > 12_000:
+        raise ValueError("prompt is too long (12,000 characters maximum)")
+    return prompt, prompt_format
 
 
 def _cache_media(data, content_type="video/mp4", prefix="media"):
@@ -688,9 +730,10 @@ class Handler(BaseHTTPRequestHandler):
             threading.Thread(target=_run_lab_job, args=(job_id, request), daemon=True).start()
             return self._send(202, json.dumps({"ok": True, "job": job_id}))
 
-        prompt = (request.get("prompt") or "").strip()
-        if not prompt:
-            return self._send(400, json.dumps({"ok": False, "error": "empty prompt"}))
+        try:
+            prompt, prompt_format = _normalize_prompt(request)
+        except ValueError as exc:
+            return self._send(400, json.dumps({"ok": False, "error": str(exc)}))
         if request.get("identity_lock") and not request.get("image_b64"):
             return self._send(400, json.dumps({"ok": False, "error": "same-person lock needs an image"}))
         if request.get("identity_lock") and "same_face" not in capabilities:
@@ -714,6 +757,7 @@ class Handler(BaseHTTPRequestHandler):
             parsed, kind, value = _remote_generate(payload, engine)
             file_url = _result_url(kind, value, metadata={
                 "prompt": prompt,
+                "prompt_format": prompt_format,
                 "seed": seed,
                 "mode": parsed.get("mode", "video"),
                 "duration_seconds": parsed.get("duration_seconds") or request.get("duration_seconds"),
@@ -731,6 +775,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(200, json.dumps({
             "ok": True, "file_url": file_url, "seconds": round(time.time() - started_at, 1),
             "used_seed": seed, "mode": parsed.get("mode", "video"),
+            "prompt_format": prompt_format,
             "duration_seconds": parsed.get("duration_seconds"), "engine_id": engine["id"],
             "engine_label": engine["label"], "raw": _prune(parsed),
         }))
@@ -762,6 +807,10 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
   textarea,input,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font:inherit;color:var(--ink);background:#fbfdff;outline:none}
   textarea:focus,input:focus,select:focus{border-color:#7cadde;box-shadow:0 0 0 3px rgba(21,101,192,.09)} textarea{min-height:105px;resize:vertical}
   .composer{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(250px,.75fr);gap:18px}.field+ .field{margin-top:14px}
+  .prompt-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:7px}.prompt-head>label{margin:0}
+  .prompt-controls{display:flex;align-items:flex-end;gap:7px;flex-wrap:wrap;justify-content:flex-end}.prompt-format{display:flex;align-items:center;gap:7px;margin:0;color:var(--muted)}.prompt-format span{font-size:12px}.prompt-format select{width:auto;min-width:145px;padding:7px 9px;font-size:13px}
+  .prompt-controls button{min-height:34px;padding:7px 10px;font-size:12px}.prompt-note{display:block;margin-top:7px;min-height:20px}.json-valid{color:var(--ok)}.json-invalid{color:var(--bad)}
+  textarea.json-prompt{min-height:420px;font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:13px;line-height:1.5;tab-size:2;white-space:pre}
   .drop{min-height:151px;border:1.5px dashed #a9bdd5;border-radius:11px;background:#f8fbff;display:grid;place-items:center;text-align:center;padding:14px;cursor:pointer;color:var(--muted);transition:.18s}
   .drop:hover,.drop.drag{border-color:var(--accent);background:var(--accent-soft)}.drop .icon{font-size:25px;display:block;margin-bottom:4px}.drop b{color:var(--accent)}
   .drop.disabled{opacity:.55;cursor:not-allowed}.drop.disabled:hover{border-color:#a9bdd5;background:#f8fbff}
@@ -781,7 +830,7 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
   .progress{height:7px;background:#e4ebf4;border-radius:99px;overflow:hidden;margin-top:10px}.progress>span{height:100%;display:block;background:linear-gradient(90deg,var(--accent),#45a4ff);transition:width .4s}
   .scene-clips{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px;margin-top:12px}.scene-clips video{width:100%;border-radius:8px;background:#000}
   .gallery-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px}.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}.tile{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:#fff}.tile video{width:100%;aspect-ratio:16/9;object-fit:contain;display:block;background:#000}.tile .meta{padding:10px;font-size:12px;color:var(--muted);display:grid;gap:5px}.tile .meta b{color:var(--ink)}.tile-tools{display:flex;align-items:center;justify-content:space-between;gap:8px}.empty-gallery{grid-column:1/-1;padding:38px 18px;text-align:center;border:1px dashed #b8c8da;border-radius:11px;background:#f8fbff}.filename{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  @media(max-width:760px){body{background:var(--bg)}header{padding:10px 12px;gap:9px}header .tagline{display:none}header h1{font-size:16px}#ep{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mark{width:29px;height:29px}main{margin:10px auto 28px;padding:0 8px;gap:10px}.card{border-radius:12px}.engine-bar{grid-template-columns:1fr auto;padding:13px 14px;gap:10px}.engine-copy{grid-column:1/-1;grid-row:2}.engine-copy .sub{white-space:normal}.settings-panel{padding:14px}.settings-grid{grid-template-columns:1fr 1fr}.composer,.lab-layout{grid-template-columns:1fr;gap:14px}.lab-side{position:static}.scene-grid{grid-template-columns:1fr}.panel{padding:14px}.panel-head,.gallery-head{flex-wrap:wrap;margin-bottom:14px}.tabs{padding:5px;gap:4px}.tab{flex:1 0 auto;padding:10px 12px}.drop{min-height:112px}.preview{height:142px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row .seed,.row .duration{min-width:0;flex:initial}.row .grow{display:none}.row #rnd,.row .go{grid-column:1/-1;width:100%}.result-tools{align-items:flex-start;flex-wrap:wrap}.result-tools .dl{padding:8px 0}.scene{padding:10px}.scene textarea{min-height:92px}.status{align-items:flex-start;overflow-wrap:anywhere}textarea,input,select{font-size:16px}.gallery{grid-template-columns:1fr}.tile .meta{padding:11px}.scene-clips{grid-template-columns:1fr}}
+  @media(max-width:760px){body{background:var(--bg)}header{padding:10px 12px;gap:9px}header .tagline{display:none}header h1{font-size:16px}#ep{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mark{width:29px;height:29px}main{margin:10px auto 28px;padding:0 8px;gap:10px}.card{border-radius:12px}.engine-bar{grid-template-columns:1fr auto;padding:13px 14px;gap:10px}.engine-copy{grid-column:1/-1;grid-row:2}.engine-copy .sub{white-space:normal}.settings-panel{padding:14px}.settings-grid{grid-template-columns:1fr 1fr}.composer,.lab-layout{grid-template-columns:1fr;gap:14px}.prompt-head{align-items:flex-start;flex-direction:column}.prompt-controls{justify-content:flex-start}.prompt-format select{font-size:16px}.lab-side{position:static}.scene-grid{grid-template-columns:1fr}.panel{padding:14px}.panel-head,.gallery-head{flex-wrap:wrap;margin-bottom:14px}.tabs{padding:5px;gap:4px}.tab{flex:1 0 auto;padding:10px 12px}.drop{min-height:112px}.preview{height:142px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row .seed,.row .duration{min-width:0;flex:initial}.row .grow{display:none}.row #rnd,.row .go{grid-column:1/-1;width:100%}.result-tools{align-items:flex-start;flex-wrap:wrap}.result-tools .dl{padding:8px 0}.scene{padding:10px}.scene textarea{min-height:92px}.status{align-items:flex-start;overflow-wrap:anywhere}textarea,input,select{font-size:16px}.gallery{grid-template-columns:1fr}.tile .meta{padding:11px}.scene-clips{grid-template-columns:1fr}}
   @media(min-width:521px) and (max-width:760px){.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style></head><body>
 <header><span class="mark">❄</span><h1>Frosty Studio</h1><span class="sub tagline">universal video</span><span id="dot" class="dot"></span><span class="sub" id="ep">connecting…</span></header>
@@ -807,8 +856,16 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
       <div class="panel-head"><div><h2>Create a clip</h2><div class="sub">Prompt from scratch or animate an uploaded image.</div></div><span class="badge" id="duration-badge">5–14 sec</span></div>
       <div class="composer">
         <div>
-          <label for="p">Direction</label>
+          <div class="prompt-head">
+            <label for="p">Direction</label>
+            <div class="prompt-controls">
+              <label class="prompt-format" for="prompt-format"><span>Format</span><select id="prompt-format"><option value="text">Natural language</option><option value="json">Structured JSON</option></select></label>
+              <button class="ghost" id="json-template" type="button" hidden>Load detailed template</button>
+              <button class="ghost" id="json-format" type="button" hidden>Format JSON</button>
+            </div>
+          </div>
           <textarea id="p" placeholder="Describe the subject, action, camera, lighting, dialogue, and sound…">A red fox trotting through a snowy pine forest, cinematic tracking shot, soft daylight, natural forest ambience</textarea>
+          <span class="sub prompt-note" id="prompt-note">Natural-language direction sent directly to the selected model.</span>
         </div>
         <div>
           <label>Source image <span class="sub">(optional)</span></label>
@@ -858,6 +915,78 @@ let imageData=null,imageName='',timer=null,t0=0,labTimer=null,engines=[],selecte
 const capNames={text_to_video:'Text',image_to_video:'Image',same_face:'Same Face',native_audio:'Audio',scene_lab:'Scene Lab'};
 const selectedEngine=()=>engines.find(x=>x.id===selectedEngineId)||engines[0]||null;
 const hasCap=name=>!!selectedEngine()?.capabilities?.includes(name);
+const jsonPromptTemplate={
+  version:"1.0",
+  summary:"A cinematic tracking shot of a red fox moving through a snowy pine forest at dawn.",
+  intent:{mood:"quiet, alert, immersive",priority:"natural motion, coherent anatomy, and synchronized environmental sound"},
+  subjects:[{
+    id:"fox_1",
+    type:"adult red fox",
+    appearance:{fur:"rich red-orange winter coat",markings:"white chest and dark lower legs",condition:"healthy and dry"},
+    action:"trot steadily along a narrow snow-covered trail, occasionally turning its ears toward distant sounds",
+    performance:"natural animal behavior; calm but attentive",
+    continuity:"preserve coat markings, scale, and body proportions for the entire shot"
+  }],
+  environment:{
+    location:"dense alpine pine forest",
+    time_of_day:"early dawn",
+    weather:"cold, still air with very light drifting snow",
+    ground:"fresh powder over a narrow forest trail",
+    background:"layered pine trunks fading into pale blue atmospheric haze",
+    physical_details:["small puffs of powder under each paw", "subtle breath vapor", "occasional snow falling from branches"]
+  },
+  timeline:[
+    {time:"0.0-1.5s",visual_action:"begin on a wide profile view as the fox enters frame left",camera_action:"smooth lateral tracking begins",audio_event:"soft paw impacts and quiet winter wind"},
+    {time:"1.5-3.8s",visual_action:"fox crosses the center of frame and briefly looks toward camera without stopping",camera_action:"ease into a medium profile framing with stable horizon",audio_event:"nearby branch creak and a distant bird call on the right"},
+    {time:"3.8-5.2s",visual_action:"fox continues toward a brighter opening between the trees",camera_action:"gently lag behind and hold the final composition",audio_event:"paw sounds recede into natural forest ambience"}
+  ],
+  camera:{
+    shot_design:"single continuous shot",
+    framing:"wide-to-medium side profile",
+    lens:"35mm spherical lens",
+    movement:"low, stabilized lateral tracking at the fox's pace",
+    height:"approximately 45 cm above the ground",
+    focus:"continuous focus on the fox's eyes and head",
+    depth_of_field:"moderate; subject sharp with softly layered background",
+    composition:"fox travels left to right with open lead room",
+    prohibited_moves:["no cuts", "no sudden zoom", "no orbit", "no handheld shake"]
+  },
+  lighting:{
+    key:"soft cool dawn skylight",
+    accent:"faint warm sunlight filtering between distant trees",
+    contrast:"gentle and realistic",
+    exposure:"retain detail in white snow and dark fur"
+  },
+  visual_style:{
+    medium:"photoreal cinematic nature footage",
+    color_palette:["snow white", "pine green", "cool blue shadows", "warm red fur"],
+    texture:"fine fur, powder snow, and bark detail without oversharpening",
+    motion_rendering:"natural shutter motion blur",
+    grading:"restrained documentary color grade"
+  },
+  audio:{
+    dialogue:[],
+    ambience:"quiet stereo winter forest with light wind through pine needles",
+    foreground_sounds:["soft rhythmic paw impacts in snow", "subtle fox breathing"],
+    background_sounds:["one distant bird call from the right", "occasional branch creak"],
+    music:"none",
+    mix:"natural dynamic range; ambience remains below foreground movement",
+    synchronization:"paw impacts and visible environmental motion must align precisely"
+  },
+  continuity:["one fox only", "consistent direction of travel", "stable weather and dawn lighting", "no unexplained objects entering the shot"],
+  avoid:["anatomy distortion", "extra limbs or tails", "sliding feet", "flicker", "warped trees", "text", "logos", "subtitles", "music"]
+};
+let promptMode='text';
+const promptDrafts={text:$('#p').value,json:JSON.stringify(jsonPromptTemplate,null,2)};
+function parsedJsonPrompt(){let value;try{value=JSON.parse($('#p').value);}catch(error){throw new Error('Invalid JSON: '+error.message);}if(!value||Array.isArray(value)||typeof value!=='object')throw new Error('JSON prompt must be a non-empty object.');if(!Object.keys(value).length)throw new Error('JSON prompt cannot be empty.');return value;}
+function promptForRequest(){if(promptMode==='json')return JSON.stringify(parsedJsonPrompt(),null,2);return $('#p').value.trim();}
+function updatePromptNote(){const note=$('#prompt-note');if(promptMode!=='json'){note.className='sub prompt-note';note.textContent='Natural-language direction sent directly to the selected model.';return;}try{const value=parsedJsonPrompt(),chars=JSON.stringify(value,null,2).length;note.className='sub prompt-note json-valid';note.textContent='Valid JSON object · '+Object.keys(value).length+' top-level fields · '+chars.toLocaleString()+' characters. The model receives this structure as prompt text.';}catch(error){note.className='sub prompt-note json-invalid';note.textContent=error.message;}}
+function setPromptMode(next){promptDrafts[promptMode]=$('#p').value;promptMode=next;$('#p').value=promptDrafts[promptMode];$('#p').classList.toggle('json-prompt',promptMode==='json');$('#p').placeholder=promptMode==='json'?'Enter one valid JSON object…':'Describe the subject, action, camera, lighting, dialogue, and sound…';$('#json-template').hidden=promptMode!=='json';$('#json-format').hidden=promptMode!=='json';updatePromptNote();}
+$('#prompt-format').onchange=()=>setPromptMode($('#prompt-format').value);
+$('#json-template').onclick=()=>{if($('#p').value.trim()&&!confirm('Replace the current JSON with the detailed template?'))return;$('#p').value=JSON.stringify(jsonPromptTemplate,null,2);promptDrafts.json=$('#p').value;updatePromptNote();};
+$('#json-format').onclick=()=>{try{$('#p').value=JSON.stringify(parsedJsonPrompt(),null,2);promptDrafts.json=$('#p').value;updatePromptNote();}catch(error){updatePromptNote();$('#status').innerHTML='<span class="err">'+esc(error.message)+'</span>';}};
+$('#p').addEventListener('input',()=>{promptDrafts[promptMode]=$('#p').value;updatePromptNote();});
+$('#p').addEventListener('keydown',event=>{if(promptMode==='json'&&event.key==='Tab'){event.preventDefault();const start=event.target.selectionStart;event.target.setRangeText('  ',start,event.target.selectionEnd,'end');promptDrafts.json=event.target.value;updatePromptNote();}});
 function setOptions(select,values,labels={}){const current=select.value;select.innerHTML='';(values||[]).forEach(value=>{const option=document.createElement('option');option.value=value;option.textContent=labels[value]||value;select.appendChild(option);});if([...select.options].some(x=>x.value===current))select.value=current;}
 function settingsPayload(){const engine=selectedEngine(),controls=engine?.controls||{},payload={};
   if(controls.resolutions?.length)payload.resolution=$('#resolution').value;if(controls.aspect_ratios?.length)payload.aspect_ratio=$('#aspect-ratio').value;
@@ -910,7 +1039,7 @@ function formatDate(seconds){const d=new Date(Number(seconds)*1000);return Numbe
 function renderGallery(items){const root=$('#gallery');root.innerHTML='';$('#gallery-summary').textContent=items.length?items.length+' saved video'+(items.length===1?'':'s'):'No saved videos yet';
   if(!items.length){root.innerHTML='<div class="empty-gallery"><b>Your videos will stay here</b><div class="sub">New clips and completed scene-lab movies are saved on this machine.</div></div>';return;}
   items.forEach(item=>{const tile=document.createElement('article');tile.className='tile';const video=document.createElement('video');video.src=item.file_url;video.controls=true;video.loop=true;video.muted=true;video.playsInline=true;video.preload='metadata';
-    const meta=document.createElement('div');meta.className='meta';const title=document.createElement('b');title.textContent=(item.engine_label?item.engine_label+' · ':'')+(item.mode||'saved video')+(item.seed!==null&&item.seed!==undefined?' · seed '+item.seed:'');
+    const meta=document.createElement('div');meta.className='meta';const title=document.createElement('b');title.textContent=(item.engine_label?item.engine_label+' · ':'')+(item.mode||'saved video')+(item.prompt_format==='json'?' · JSON':'')+(item.seed!==null&&item.seed!==undefined?' · seed '+item.seed:'');
     const prompt=document.createElement('div');prompt.textContent=item.prompt||item.name;prompt.title=item.prompt||item.name;
     const tools=document.createElement('div');tools.className='tile-tools';const details=document.createElement('span');details.textContent=[formatDate(item.created_at),formatBytes(item.size)].filter(Boolean).join(' · ');
     const link=document.createElement('a');link.className='dl';link.href=item.file_url;link.download=item.name;link.textContent='Download ↓';tools.append(details,link);meta.append(title,prompt,tools);tile.append(video,meta);root.appendChild(tile);});}
@@ -918,9 +1047,9 @@ async function loadGallery(){try{$('#gallery-summary').textContent='Loading save
   catch(e){$('#gallery-summary').textContent='Gallery unavailable';$('#gallery').innerHTML='<div class="empty-gallery"><span class="err">'+esc(e.message||e)+'</span></div>';}}
 $('#gallery-refresh').onclick=loadGallery;
 
-async function generate(){const prompt=$('#p').value.trim(),engine=selectedEngine();if(!prompt){$('#status').innerHTML='<span class="err">Enter a direction first.</span>';return;}if(!engine?.health?.ready){$('#status').innerHTML='<span class="err">'+esc(engine?.label||'The selected model')+' is not ready yet.</span>';return;}if($('#lock').checked&&!imageData){$('#status').innerHTML='<span class="err">Add a reference image for Same Face.</span>';return;}
+async function generate(){const engine=selectedEngine();let prompt;try{prompt=promptForRequest();}catch(error){$('#status').innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}if(!prompt){$('#status').innerHTML='<span class="err">Enter a direction first.</span>';return;}if(!engine?.health?.ready){$('#status').innerHTML='<span class="err">'+esc(engine?.label||'The selected model')+' is not ready yet.</span>';return;}if($('#lock').checked&&!imageData){$('#status').innerHTML='<span class="err">Add a reference image for Same Face.</span>';return;}
   $('#go').disabled=true;$('#result').innerHTML='';t0=Date.now();tick();timer=setInterval(tick,1000);
-  try{const payload={prompt,engine_id:engine.id,seed:$('#s').value.trim(),duration_seconds:Number($('#duration').value),identity_lock:$('#lock').checked,...settingsPayload()};if(imageData)payload.image_b64=imageData;
+  try{const payload={prompt,prompt_format:promptMode,engine_id:engine.id,seed:$('#s').value.trim(),duration_seconds:Number($('#duration').value),identity_lock:$('#lock').checked,...settingsPayload()};if(imageData)payload.image_b64=imageData;
     const r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),j=await r.json();clearInterval(timer);
     if(j.ok){$('#status').textContent=j.engine_label+' finished in '+j.seconds+'s · seed '+j.used_seed;showResult($('#result'),j.file_url,j.used_seed,j.engine_label+' · '+j.mode);loadGallery();}
     else $('#status').innerHTML='<span class="err">'+esc(j.error||'No media returned')+'</span>';

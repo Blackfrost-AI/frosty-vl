@@ -55,7 +55,7 @@ for label, path in enabled_directions:
 
 try:
     # diffusers Apache-2.0 reference pipeline classes for the Qwen3-VL text-encoder
-    # integration - not a MiniMax product dependency.
+    # integration - external library API, not branding.
     from diffusers import MiniMaxH3Ref2VABlocks, ModularPipeline
     from diffusers.modular_pipelines.minimax_h3 import MiniMaxH3Reference
     print("OK: Diffusers Qwen3-VL modular integration imports")
