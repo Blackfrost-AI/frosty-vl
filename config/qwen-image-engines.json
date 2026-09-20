@@ -1,0 +1,11 @@
+{
+  "default": "qwen-image-2.1",
+  "engines": [{
+    "id": "qwen-image-2.1",
+    "label": "Qwen Image 2.1",
+    "base": "http://127.0.0.1:8899",
+    "description": "Create, edit, compose references, and work with transparent images.",
+    "capabilities": ["text_to_image", "image_edit", "multi_reference", "transparent_png", "transparent_edit", "subject_extraction", "mask_edit", "annotation_edit"],
+    "controls": {"max_references": 10, "resolutions": [512, 1024, 2048], "steps": {"min": 1, "max": 80, "default": 40}}
+  }]
+}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Frosty · Image Studio</title><link rel="stylesheet" href="/image_studio.css"></head>
+<body>
+<header><a class="brand" href="/" aria-label="Frosty Image Studio"><span class="brand-mark">❄</span><span>FROSTY <small>IMAGE STUDIO</small></span></a><div class="model">Qwen Image <b>2.1</b><span class="model-state"><i id="dot"></i><span id="health">Connecting</span></span></div><button class="quiet" id="gallery-toggle">Gallery <span id="gallery-count">0</span></button></header>
+<div class="workspace">
+<aside class="composer">
+  <div class="section-head"><span class="eyebrow">YOUR NEXT IMAGE</span><span class="local-label">Local rendering</span></div>
+  <h1>Make it yours.</h1><p class="intro">An idea, a reference, a little direction.</p>
+  <fieldset class="mode-set"><legend>Workspace</legend><div class="mode-grid">
+    <button data-mode="generate" class="mode active" aria-pressed="true">✧ <span>Create</span></button><button data-mode="edit" class="mode" aria-pressed="false">▧ <span>Edit / compose</span></button>
+    <button data-mode="transparent" class="mode" aria-pressed="false">◈ <span>Transparent</span></button><button data-mode="extract" class="mode" aria-pressed="false">✂ <span>Extract subject</span></button>
+    <button data-mode="masked" class="mode" aria-pressed="false">◌ <span>Mask edit</span></button><button data-mode="annotate" class="mode" aria-pressed="false">✎ <span>Annotate</span></button>
+  </div></fieldset>
+  <label for="prompt">Direction <span id="mode-hint">Describe the image you want to create.</span></label>
+  <textarea id="prompt" rows="5" placeholder="A glass greenhouse floating above a misty pine forest, warm light inside, soft morning sky…"></textarea>
+  <div class="enhance-row"><button id="enhance" class="quiet" disabled>✧ Enhance prompt</button><span id="enhance-hint" class="hint">Preview before applying</span></div>
+  <label class="check"><input id="auto-enhance" type="checkbox" checked> Enhance automatically when generating</label>
+  <label class="check"><input id="auto-ratio" type="checkbox"> Let the enhancer choose the aspect ratio</label>
+  <section id="enhance-preview" hidden><label for="enhanced-prompt">Enhanced direction <span>Review or edit before using</span></label><textarea id="enhanced-prompt" rows="8"></textarea><p id="enhance-model" class="hint"></p><label id="enhance-ratio-row" class="check" hidden><input type="checkbox" id="enhance-ratio"><span id="enhance-ratio-label"></span></label><div class="enhance-actions"><button class="quiet selected" id="use-enhanced">Use this prompt</button><button class="quiet" id="discard-enhanced">Discard</button></div></section>
+  <div id="references-section" hidden><div class="label-row"><label for="references">Reference images</label><span id="reference-count">0 / 10</span></div><label class="upload-zone" id="drop-zone" for="references"><span>＋</span> Drop images or choose files<small>PNG, JPEG, WebP · transparency preserved</small></label><input type="file" id="references" accept="image/png,image/jpeg,image/webp" multiple hidden><div id="reference-list"></div><p class="hint">Images are numbered in order. Mention “image 1” or “image 2” in your direction.</p></div>
+  <div class="two-col"><div><label for="ratio">Aspect ratio</label><select id="ratio"><option>1:1</option><option>4:3</option><option>3:4</option><option>3:2</option><option>2:3</option><option>16:9</option><option>9:16</option></select></div><div><label for="resolution">Size</label><select id="resolution"><option value="512">512 · draft</option><option value="1024" selected>1K · standard</option><option value="2048">2K · large</option></select></div></div>
+  <div class="size-caption" id="dimensions">1024 × 1024</div>
+  <label class="check"><input id="custom-size" type="checkbox"> Custom dimensions</label>
+  <div id="custom-dimensions" class="two-col" hidden><div><label for="custom-width">Width</label><input id="custom-width" type="number" min="256" max="4096" step="32" value="1024"></div><div><label for="custom-height">Height</label><input id="custom-height" type="number" min="256" max="4096" step="32" value="1024"></div></div>
+  <details><summary>Fine tune <span>Steps, seed, variations</span></summary><div class="advanced">
+    <div class="two-col"><div><label for="steps">Steps</label><input id="steps" type="number" min="1" max="80" value="40"></div><div><label for="count">Variations</label><select id="count"><option value="1">1 image</option><option value="2">2 images</option><option value="3">3 images</option><option value="4">4 images</option></select></div></div>
+    <label for="seed">Seed <span>Blank for a new result</span></label><input id="seed" type="text" inputmode="numeric" placeholder="Random">
+    <label for="reference-detail">Reference detail <span>Lower values leave more room for multiple images</span></label><select id="reference-detail"><option value="256">256 · compact</option><option value="512" selected>512 · standard</option><option value="1024">1024 · high detail</option></select>
+    <label for="negative">Avoid <span>Optional negative prompt</span></label><textarea id="negative" rows="2" placeholder="Unwanted elements…"></textarea>
+    <label for="guidance">Guidance <span>1 uses the model's default sampling</span></label><input id="guidance" type="number" min="1" max="10" step="0.5" value="1">
+    <label class="check"><input id="kv-cache" type="checkbox" checked> Reuse reference context between steps</label>
+  </div></details>
+  <button id="generate" class="primary" disabled><span>Generate image</span><span>↗</span></button><p id="form-error" role="alert"></p><div class="keyboard-hint">⌘ / Ctrl + Enter to generate</div>
+</aside>
+<main>
+  <div class="canvas-top"><div><span class="eyebrow">CANVAS</span><span class="canvas-subtitle" id="canvas-title">A place for your imagination</span></div><span class="output-tag">PNG · RGBA</span></div>
+  <section id="editor" hidden><div class="editor-tools"><b id="editor-title">Paint an edit region</b><div><button class="quiet selected" id="brush">Brush</button><button class="quiet" id="circle">Circle</button><label>Size <input id="brush-size" type="range" min="4" max="100" value="30"></label><button class="quiet" id="clear-paint">Clear</button><label class="quiet" for="mask-upload" id="mask-upload-label">Upload mask</label><input type="file" id="mask-upload" accept="image/png,image/jpeg,image/webp" hidden></div></div><div class="editor-surface checker"><img id="editor-image" alt="First reference"><canvas id="paint" aria-label="Paint mask or editing annotations"></canvas></div><label class="check" id="preserve-label"><input id="preserve" type="checkbox" checked> Keep pixels outside the mask unchanged</label><p class="hint" id="editor-hint">Paint the area you want to change. A white region in an uploaded mask is editable.</p></section>
+  <div id="status-panel" hidden aria-live="polite"><div><span class="spinner" id="spinner"></span><b id="job-stage">Queued</b><button class="quiet" id="cancel">Cancel</button></div><progress id="progress" max="1" value="0"></progress><span id="elapsed"></span></div>
+  <section id="results"><div class="empty-canvas"><div class="ice-symbol">✧</div><h2>From thought to image.</h2><p>Create something new, bring references together,<br>or find a new possibility in an existing image.</p><div class="suggestions"><button data-example="A sculptural chrome fox on a pale blue plinth, soft studio light, editorial product photograph">Chrome fox</button><button data-example="A tiny greenhouse on a floating island, misty pines below, warm amber windows, dreamlike photography">Floating greenhouse</button><button data-example="A bold graphic poster reading MAKE SOMETHING NEW, white typography on deep cobalt blue, clean Swiss design">Type study</button></div></div></section>
+  <section id="gallery-section" hidden><div class="gallery-header"><div><span class="eyebrow">SAVED ON THIS PC</span><h2>Your collection</h2></div><button class="quiet" id="refresh-gallery">Refresh</button></div><div id="gallery"></div></section>
+  <footer><span>BLACKFROST</span><span>Your images stay on your machine.</span></footer>
+</main></div>
+<script src="/image_studio.js"></script></body></html>

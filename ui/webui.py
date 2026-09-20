@@ -97,10 +97,11 @@ _CACHE_LOCK = threading.Lock()
 _JOBS = {}
 _JOBS_LOCK = threading.Lock()
 
-MEDIA_EXT = (".mp4", ".webm", ".gif", ".mov", ".m4v")
+MEDIA_EXT = (".mp4", ".webm", ".gif", ".mov", ".m4v", ".png", ".jpg", ".jpeg", ".webp")
 CT_BY_EXT = {
     ".mp4": "video/mp4", ".webm": "video/webm", ".gif": "image/gif",
     ".mov": "video/quicktime", ".m4v": "video/mp4",
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
 }
 
 
@@ -111,8 +112,8 @@ def _gallery_path(name):
     clean = Path(str(name)).name
     if not clean.lower().endswith(MEDIA_EXT):
         return None
-    candidate = (GALLERY_DIR / clean).resolve()
-    if candidate.parent != GALLERY_DIR or candidate.is_symlink():
+    candidate = GALLERY_DIR / clean
+    if candidate.is_symlink() or candidate.resolve().parent != GALLERY_DIR:
         return None
     return candidate
 
@@ -185,6 +186,8 @@ def _gallery_items():
                 "engine_label": metadata.get("engine_label"),
                 "resolution": metadata.get("resolution"),
                 "aspect_ratio": metadata.get("aspect_ratio"),
+                "width": metadata.get("width"), "height": metadata.get("height"),
+                "content_type": _content_type_for(path.name),
             })
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             continue
@@ -590,14 +593,33 @@ class Handler(BaseHTTPRequestHandler):
 
     def _read_json(self, limit=36_000_000):
         length = int(self.headers.get("Content-Length", "0"))
-        if length > limit:
+        if length < 0 or length > limit:
             raise ValueError("request is too large")
         return json.loads(self.rfile.read(length) or b"{}")
+
+    def _image_proxy(self, method, path, payload=None):
+        engine = _engine(None)
+        if "text_to_image" not in engine["capabilities"]:
+            return self._send(404, json.dumps({"detail": "No image engine is configured"}))
+        try:
+            status, raw = http_json(method, path, payload, timeout=15, base=engine["base"])
+            return self._send(status, raw)
+        except urllib.error.HTTPError as exc:
+            return self._send(exc.code, exc.read(12000))
+        except Exception as exc:
+            return self._send(502, json.dumps({"detail": "Image engine unavailable: " + str(exc)}))
 
     def do_GET(self):
         parsed_path = urlparse(self.path)
         if parsed_path.path == "/":
+            if "text_to_image" in _engine(None)["capabilities"]:
+                return self._send(200, Path(__file__).with_name("image_studio.html").read_bytes(), "text/html; charset=utf-8")
             return self._send(200, PAGE, "text/html; charset=utf-8")
+        if parsed_path.path in ("/image_studio.js", "/image_studio.css"):
+            kind = "text/javascript" if parsed_path.path.endswith(".js") else "text/css"
+            return self._send(200, Path(__file__).with_name(parsed_path.path[1:]).read_bytes(), kind + "; charset=utf-8")
+        if re.fullmatch(r"/api/images/jobs/img_[a-f0-9]{24}", parsed_path.path):
+            return self._image_proxy("GET", parsed_path.path.removeprefix("/api/images"))
         if parsed_path.path == "/api/health":
             engine = _engine(parse_qs(parsed_path.query).get("engine", [DEFAULT_ENGINE_ID])[0])
             try:
@@ -680,7 +702,18 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(404, "not found", "text/plain")
 
     def do_POST(self):
+        origin = self.headers.get("Origin")
+        if origin and urlparse(origin).netloc != self.headers.get("Host"):
+            return self._send(403, json.dumps({"detail": "Cross-origin writes are not accepted"}))
         path = urlparse(self.path).path
+        if path in {"/api/images/jobs", "/api/images/enhance"} or re.fullmatch(r"/api/images/jobs/img_[a-f0-9]{24}/cancel", path):
+            try:
+                payload = self._read_json()
+                if not isinstance(payload, dict):
+                    raise ValueError("expected a JSON object")
+            except Exception as exc:
+                return self._send(400, json.dumps({"detail": str(exc)}))
+            return self._image_proxy("POST", path.removeprefix("/api/images"), payload)
         if path not in ("/api/generate", "/api/lab"):
             return self._send(404, "not found", "text/plain")
         try:
