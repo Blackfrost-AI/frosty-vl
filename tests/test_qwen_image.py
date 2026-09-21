@@ -30,6 +30,7 @@ def rgba():
 @pytest.mark.parametrize("updates", [
     {"prompt": " "}, {"width": 257}, {"height": 255}, {"width": 4096, "height": 4096},
     {"n": 5}, {"seed": -1}, {"num_inference_steps": 0}, {"true_cfg_scale": 11},
+    {"dwm_scale": -0.01}, {"dwm_scale": 2.01},
     {"negative_prompt": "blur"}, {"true_cfg_scale": 2}, {"mode": "edit"}, {"mode": "extract"},
     {"mode": "masked"}, {"mode": "annotate"}, {"mask_b64": "x"}, {"invented_parameter": True},
 ])
@@ -57,6 +58,29 @@ def test_reference_order_and_limits(rgba):
         q.ImageRequest(prompt="combine", mode="edit", images_b64=[rgba] * 11)
     with pytest.raises(ValidationError):
         q.ImageRequest(prompt="combine", mode="masked", images_b64=[rgba] * 10, mask_b64=rgba)
+
+
+def test_auto_mode_selects_from_reference_presence(rgba):
+    assert q.ImageRequest(prompt="a fox").mode == "generate"
+    spec = q.ImageRequest(prompt="combine", images_b64=[rgba] * 10)
+    assert spec.mode == "edit"
+    with pytest.raises(ValidationError):
+        q.ImageRequest(prompt="combine", mode="generate", images_b64=[rgba])
+
+
+def test_image_library_api_and_hidden_file(engine):
+    client = TestClient(q.app)
+    item = engine.library.publish(Image.new("RGBA", (8, 8)), "test.png", {"seed": 1})
+    assert client.get("/gallery").json()["items"][0]["id"] == item["id"]
+    assert client.get("/files/test.png").status_code == 200
+    result = client.post("/gallery/trash", json={"ids": [item["id"], "invalid"]}).json()
+    assert result["results"][0]["ok"] and not result["results"][1]["ok"]
+    assert client.get("/files/test.png").status_code == 404
+    token = result["results"][0]["trash_id"]
+    assert client.get("/gallery/trash").json()["items"][0]["id"] == token
+    assert client.post("/gallery/restore", json={"ids": [token]}).json()["ok"]
+    assert client.get("/files/test.png").status_code == 200
+    assert client.post("/gallery/trash", json={"ids": []}).status_code == 422
 
 
 def test_mask_controls(rgba):
@@ -133,6 +157,7 @@ def test_saved_rgba_mask_preservation_and_seed(engine, rgba, monkeypatch):
     assert image.getpixel((255, 0)) == (255, 0, 0, 180)
     metadata = json.loads((engine.output / (result["outputs"][0]["name"] + ".json")).read_text())
     assert metadata["seed"] == 42 and metadata["preserve_unmasked"] is True
+    assert metadata["dwm_scale"] == q.DWM_DEFAULT_SCALE
     assert not list(engine.output.glob("*.partial"))
 
 

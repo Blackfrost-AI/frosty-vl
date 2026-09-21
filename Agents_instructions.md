@@ -1,5 +1,11 @@
 # Frosty VL — Agent Installation Instructions
 
+For **Qwen Image 2.1**, follow [IMAGE-STUDIO.md](IMAGE-STUDIO.md). The instructions
+below cover the original video engines; their Qwen3-VL encoder checks and steering
+vectors do not apply to the separate image engine. Both workspaces can share one
+Studio proxy using `config/engines.combined.example.json`. Keep each backend on
+loopback and the Studio on the operator's existing private connection.
+
 **Audience: an AI agent installing Frosty VL on behalf of its operator.**
 Read this whole file first, then follow it top to bottom. Do not skip the questions in
 Step 0 — they are required for correctness and licensing.

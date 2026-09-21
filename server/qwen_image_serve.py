@@ -1,7 +1,8 @@
 """Qwen Image 2.1 engine. Native Windows/CUDA; local weights; one GPU worker.
 
 The optional NF4 loader quantizes linear layers in memory, leaving the source
-checkpoint intact. This engine does not use the video engine's steering code.
+checkpoint intact. An optional image-specific DWM profile projects text-encoder
+writer activations at runtime and likewise never changes weights.
 """
 from __future__ import annotations
 
@@ -25,11 +26,17 @@ from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image, ImageOps
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from . import qwen_prompt_enhance
+from .image_dwm import configure_from_environment, request_scale
+from .image_library import ImageLibrary, TYPES
 
 MODEL_ID = "Qwen/Qwen-Image-2.1"
 MODEL_DIR = Path(os.environ.get("FVL_IMAGE_MODEL_DIR", "models/Qwen-Image-2.1")).resolve()
 OUT_DIR = Path(os.environ.get("FVL_IMAGE_OUTPUT_DIR", "outputs/images")).resolve()
 QUANTIZATION = os.environ.get("FVL_IMAGE_QUANTIZATION", "nf4")
+DWM_DEFAULT_SCALE = float(os.environ.get("FVL_IMAGE_DWM_DEFAULT_SCALE", "0.0"))
+if not 0.0 <= DWM_DEFAULT_SCALE <= 2.0:
+    raise ValueError("FVL_IMAGE_DWM_DEFAULT_SCALE must be between 0 and 2")
+DWM_STATUS = {"enabled": False, "mode": "clean", "weights_modified": False}
 MAX_BODY = 36_000_000
 CAPABILITIES = ["text_to_image", "image_edit", "multi_reference", "transparent_png",
                 "transparent_edit", "subject_extraction", "mask_edit", "annotation_edit"]
@@ -38,7 +45,7 @@ CAPABILITIES = ["text_to_image", "image_edit", "multi_reference", "transparent_p
 class ImageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     prompt: str = Field(min_length=1, max_length=12000)
-    mode: Literal["generate", "edit", "transparent", "extract", "masked", "annotate"] = "generate"
+    mode: Literal["auto", "generate", "edit", "transparent", "extract", "masked", "annotate"] = "auto"
     images_b64: list[str] = Field(default_factory=list, max_length=10)
     mask_b64: str | None = None
     preserve_unmasked: bool = True
@@ -53,9 +60,12 @@ class ImageRequest(BaseModel):
     n: int = Field(default=1, ge=1, le=4)
     enhance_prompt: bool = False
     auto_aspect_ratio: bool = False
+    dwm_scale: float = Field(default=DWM_DEFAULT_SCALE, ge=0.0, le=2.0)
 
     @model_validator(mode="after")
     def validate_options(self):
+        if self.mode == "auto":
+            self.mode = "edit" if self.images_b64 else "generate"
         self.prompt = self.prompt.strip()
         if not self.prompt:
             raise ValueError("Enter an image description or editing instruction")
@@ -125,6 +135,7 @@ def prepare_inputs(spec: ImageRequest):
 
 
 def load_pipeline():
+    global DWM_STATUS
     import torch
     from diffusers import BitsAndBytesConfig as DiffusionQuantization
     from diffusers import QwenImage21Pipeline, QwenImage21Transformer2DModel
@@ -143,6 +154,8 @@ def load_pipeline():
         encoder = Qwen3VLForConditionalGeneration.from_pretrained(
             str(MODEL_DIR / "text_encoder"), quantization_config=EncoderQuantization(**quant),
             dtype=torch.bfloat16, device_map={"": 0}, **common)
+        DWM_STATUS = configure_from_environment(encoder)
+        print(f"[qwen-image] DWM profile: {DWM_STATUS}", flush=True)
         print("[qwen-image] Loading NF4 image transformer", flush=True)
         transformer = QwenImage21Transformer2DModel.from_pretrained(
             str(MODEL_DIR / "transformer"), quantization_config=DiffusionQuantization(**quant),
@@ -153,6 +166,8 @@ def load_pipeline():
         pipe.to("cuda")
     elif QUANTIZATION == "bf16-offload":
         pipe = QwenImage21Pipeline.from_pretrained(str(MODEL_DIR), torch_dtype=torch.bfloat16, **common)
+        DWM_STATUS = configure_from_environment(pipe.text_encoder)
+        print(f"[qwen-image] DWM profile: {DWM_STATUS}", flush=True)
         pipe.enable_model_cpu_offload()
     else:
         raise ValueError("FVL_IMAGE_QUANTIZATION must be nf4 or bf16-offload")
@@ -169,8 +184,9 @@ def load_pipeline():
 class ImageEngine:
     def __init__(self, loader=load_pipeline, output_dir=OUT_DIR):
         self.loader = loader
-        self.output = Path(output_dir)
+        self.output = Path(output_dir).resolve()
         self.output.mkdir(parents=True, exist_ok=True)
+        self.library = ImageLibrary(self.output)
         self.pipe = None
         self.loading = False
         self.error = None
@@ -328,12 +344,13 @@ class ImageEngine:
                 return callback_kwargs
 
             seed = (spec.seed + index) % (2**63)
-            result = self.pipe(prompt=prompt, image=images or None, width=spec.width, height=spec.height,
-                               output_resolution=spec.reference_resolution,
-                               num_inference_steps=spec.num_inference_steps,
-                               true_cfg_scale=spec.true_cfg_scale, negative_prompt=spec.negative_prompt or None,
-                               use_kv_cache=spec.use_kv_cache, generator=torch.Generator("cuda").manual_seed(seed),
-                               callback_on_step_end=on_step).images[0].convert("RGBA")
+            with request_scale(spec.dwm_scale):
+                result = self.pipe(prompt=prompt, image=images or None, width=spec.width, height=spec.height,
+                                   output_resolution=spec.reference_resolution,
+                                   num_inference_steps=spec.num_inference_steps,
+                                   true_cfg_scale=spec.true_cfg_scale, negative_prompt=spec.negative_prompt or None,
+                                   use_kv_cache=spec.use_kv_cache, generator=torch.Generator("cuda").manual_seed(seed),
+                                   callback_on_step_end=on_step).images[0].convert("RGBA")
             if self.get(job_id)["cancel"]:
                 self.update(job_id, status="cancelled", stage="Cancelled", outputs=outputs)
                 return
@@ -341,23 +358,18 @@ class ImageEngine:
                 original = images[0].resize(result.size, Image.Resampling.LANCZOS)
                 result = Image.composite(result, original, mask.resize(result.size, Image.Resampling.NEAREST))
             name = f"qwen21_{time.strftime('%Y%m%d_%H%M%S')}_{seed}_{secrets.token_hex(4)}.png"
-            target = self.output / name
-            temporary = target.with_suffix(".partial")
-            result.save(temporary, format="PNG")
-            os.replace(temporary, target)
             metadata = dict(prompt=original_prompt, effective_prompt=prompt, seed=seed, mode=spec.mode,
                             prompt_enhancement=self.get(job_id).get("enhancement"),
                             engine_id="qwen-image-2.1", engine_label="Qwen Image 2.1", created_at=time.time(),
                             width=result.width, height=result.height, format="RGBA PNG", reference_count=len(spec.images_b64),
                             num_inference_steps=spec.num_inference_steps, quantization=QUANTIZATION,
                             true_cfg_scale=spec.true_cfg_scale, use_kv_cache=spec.use_kv_cache,
+                            dwm_scale=spec.dwm_scale, dwm_profile=DWM_STATUS,
                             reference_resolution=spec.reference_resolution,
                             preserve_unmasked=spec.preserve_unmasked if mask is not None else None)
-            sidecar = target.with_name(name + ".json")
-            temp_meta = sidecar.with_suffix(".tmp")
-            temp_meta.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-            os.replace(temp_meta, sidecar)
-            outputs.append(dict(name=name, file_url="/files/" + name, seed=seed, width=result.width, height=result.height))
+            saved = self.library.publish(result, name, metadata)
+            outputs.append(dict(id=saved["id"], name=name, file_url="/files/" + name,
+                                seed=seed, width=result.width, height=result.height))
             self.update(job_id, outputs=list(outputs))
         self.update(job_id, status="done", stage="Complete", seconds=round(time.monotonic() - started, 2), outputs=outputs)
 
@@ -393,6 +405,7 @@ def health():
     return dict(status="error" if engine.error else "loading" if engine.loading else "ok",
                 ready=engine.ready, loading=engine.loading, error=engine.error,
                 model=MODEL_ID, quantization=QUANTIZATION, capabilities=CAPABILITIES,
+                dwm=DWM_STATUS, dwm_default_scale=DWM_DEFAULT_SCALE,
                 prompt_enhancement=qwen_prompt_enhance.available(MODEL_DIR),
                 active_job=engine.active, queued=engine.pending.qsize())
 
@@ -431,11 +444,47 @@ def cancel(job_id: str):
     return current
 
 
+class LibrarySelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[str] = Field(min_length=1, max_length=100)
+
+
+@app.get("/gallery")
+def gallery():
+    return engine.library.gallery()
+
+
+@app.get("/gallery/trash")
+def gallery_trash():
+    return engine.library.trash_items()
+
+
+def library_action(selection, action):
+    results = []
+    for identifier in dict.fromkeys(selection.ids):
+        try:
+            entry = action(identifier)
+            results.append(dict(id=identifier, ok=True, trash_id=entry["id"],
+                                asset_id=entry["asset_id"], name=entry["name"], state=entry["state"]))
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            results.append(dict(id=identifier, ok=False, error=str(exc)))
+    return dict(ok=all(item["ok"] for item in results), results=results)
+
+
+@app.post("/gallery/trash")
+def trash_images(selection: LibrarySelection):
+    return library_action(selection, engine.library.move_to_trash)
+
+
+@app.post("/gallery/restore")
+def restore_images(selection: LibrarySelection):
+    return library_action(selection, engine.library.restore)
+
+
 @app.get("/files/{name}")
 def output_file(name: str):
-    candidate = engine.output / name
-    if Path(name).name != name or not name.endswith(".png") or candidate.is_symlink() or candidate.resolve().parent != engine.output:
+    try:
+        candidate = engine.library.file(name)
+    except (OSError, ValueError):
         raise HTTPException(404)
-    if not candidate.is_file():
-        raise HTTPException(404)
-    return FileResponse(candidate, media_type="image/png")
+    return FileResponse(candidate, media_type=TYPES[candidate.suffix.lower()])

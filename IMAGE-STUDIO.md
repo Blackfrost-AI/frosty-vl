@@ -6,18 +6,28 @@ existing video engines and their model loaders remain separate.
 
 ## Workspaces
 
-- **Create:** text-to-image, seven aspect ratios, 512/1K/2K output sizes.
-- **Edit / compose:** ordered references, up to ten images, with PNG alpha preserved.
+- **Create / edit automatically:** no references creates an image; adding references
+  selects editing. The uploader stays visible, with paste/drop, reorder, replace,
+  remove, preview and additive gallery selection. Up to ten PNG/JPEG/WebP inputs
+  with alpha preserved; seven aspect ratios and 512/1K/2K output sizes.
 - **Transparent:** RGBA generation and editing of transparent source layers.
 - **Extract subject:** prompt-guided subject extraction to a transparent PNG.
 - **Mask edit:** paint or upload a mask. White selects the edit region. With
   “Keep pixels outside the mask unchanged,” the result is composited over the
   resized original after generation; untouched pixels and alpha are preserved.
+  The mask occupies one image slot: at most nine references plus one mask.
 - **Annotate:** paint or circle an area and describe the desired edit. The
   marked reference is passed to the model, which is asked to remove the marks.
 
 All outputs are PNG. The gallery persists in the output directory. It supports
-download and reuse as a reference. Steps, seeds, sequential variations, negative
+download, additive reference reuse, and individual/bulk **Delete**. Deleted
+photos and their metadata move to app-managed **Trash**, with **Undo** and
+**Restore**, including after a restart. There is no permanent-delete operation
+or automatic purge. Interrupted moves are journaled for recovery; restore
+conflicts retain both files. Images without sidecars are supported; the image
+library does not delete videos.
+
+Steps, seeds, sequential variations, negative
 prompts with true CFG, reference resolution, and prefix caching are exposed.
 Jobs have progress, bounded queuing, cancellation, and reconnect after a page
 refresh. Restarting the engine interrupts queued/running jobs; saved images remain.
@@ -96,6 +106,15 @@ and add a firewall rule restricted to that interface and authorized overlay
 sources. Keep the engine on loopback. No public listener or authentication is
 added by these scripts; access control is provided by the private overlay.
 
+For both workspaces, adapt `config/engines.combined.example.json` and point
+`FVL_ENGINES_FILE` to it. Use separate backend ports. `/image` and `/video` select
+the workspace; `/` follows the configured default. Image API and gallery routes
+always use the image backend, even when video is the default. `FVL_GALLERY_DIR`
+continues to configure the video gallery. Run one image-engine process per
+output folder; it owns the image files and `.frosty-trash` journal.
+
+Both workspaces can coexist without loading both models on the same GPU.
+
 SGLang's September 20 Qwen Image 2.1 recipe targets CUDA on Linux and has no
 verified published container for this integration. Its smallest tested recipe
 is an RTX 4090 with 22.7 GiB request-phase VRAM. This profile uses Qwen's
@@ -103,17 +122,44 @@ recommended Diffusers pipeline with a native Windows NF4 loader instead.
 
 ## Image API
 
+### Experimental Blackfrost image DWM
+
+The image engine can load a model-specific 36x4096 direction bank and apply a
+reversible activation projection to selected Qwen3-VL text-encoder attention
+and MLP writer outputs. This is algebraically equivalent to the Frosty VL row
+projection for bias-free writers, but is compatible with the NF4 runtime and
+never edits or requantizes model weights.
+
+Configure the profile at engine start with `FVL_IMAGE_DWM_BANK`,
+`FVL_IMAGE_DWM_LAYERS`, `FVL_IMAGE_DWM_ATTN_ALPHA`, and
+`FVL_IMAGE_DWM_MLP_ALPHA`. Requests may set `dwm_scale` from 0 (clean A/B
+baseline) through 2. The default comes from `FVL_IMAGE_DWM_DEFAULT_SCALE` and
+is 0 unless explicitly configured. Health and PNG sidecars record the active
+profile and request scale.
+
+The UI reads the enabled state and default from the image engine. DWM does not
+alter the separate official prompt enhancers. Supply a matching direction bank;
+no image DWM weights are bundled.
+
 The browser-facing API accepts JSON at `POST /api/images/jobs`:
 
 ```json
-{"prompt":"A ceramic blue fox on a warm white background","mode":"generate","width":512,"height":512,"num_inference_steps":40,"seed":42}
+{"prompt":"A ceramic blue fox on a warm white background","mode":"auto","width":512,"height":512,"num_inference_steps":40,"seed":42}
 ```
 
 The HTTP 202 response contains a job `id`. Poll `GET /api/images/jobs/{id}`.
 Cancel with `POST /api/images/jobs/{id}/cancel` and an empty JSON object.
 Completed jobs include `outputs`, each with `name`, seed and dimensions.
-Fetch PNGs through `/api/gallery/file?name=<name>` and list them with
-`GET /api/gallery`.
+Fetch images through `/api/images/files/{name}` and list them with
+`GET /api/images/gallery`. `auto` is the default mode; it resolves to creation
+or editing based on reference presence. Explicit legacy modes remain supported.
+
+`POST /api/images/gallery/trash` accepts `{"ids":["image_<id>"]}` using IDs from
+the gallery. Each result reports success/failure and its `trash_id`.
+`GET /api/images/gallery/trash` lists recoverable items; restore them with
+`POST /api/images/gallery/restore` and `{"ids":["<trash_id>"]}`. Repeated operations
+are idempotent. The engine reports partial failures per item without discarding
+successful results.
 
 For editing, set `mode` to `edit`, `transparent`, `extract`, `masked`, or
 `annotate`. Pass references as an ordered `images_b64` list of base64 PNG/JPEG/WebP

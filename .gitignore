@@ -14,6 +14,11 @@ SHA256SUMS
 __pycache__/
 *.pyc
 .DS_Store
+node_modules/
+.pytest_cache/
+outputs/
+*.safetensors
+*.gguf
 
 # Proprietary IP — direction vectors are delivered to licensed customers,
 # NOT committed to the public repo. Remove these lines only to publish them.

@@ -24,7 +24,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 FVL_BASE = (os.environ.get("FVL_BASE") or "http://127.0.0.1:8899").rstrip("/")
 UI_HOST = os.environ.get("FVL_UI_HOST") or "127.0.0.1"
@@ -284,6 +284,18 @@ def find_file_ref(obj):
 
 def _engine(engine_id):
     return ENGINES_BY_ID.get(str(engine_id or "")) or ENGINES_BY_ID[DEFAULT_ENGINE_ID]
+
+
+def _image_engine():
+    default = _engine(None)
+    if "text_to_image" in default["capabilities"]:
+        return default
+    return next((item for item in ENGINES if "text_to_image" in item["capabilities"]), None)
+
+
+def _workspaces():
+    return {"image": any("text_to_image" in item["capabilities"] for item in ENGINES),
+            "video": any("text_to_video" in item["capabilities"] for item in ENGINES)}
 
 
 def _public_engine(engine, health=None):
@@ -598,8 +610,8 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length) or b"{}")
 
     def _image_proxy(self, method, path, payload=None):
-        engine = _engine(None)
-        if "text_to_image" not in engine["capabilities"]:
+        engine = _image_engine()
+        if engine is None:
             return self._send(404, json.dumps({"detail": "No image engine is configured"}))
         try:
             status, raw = http_json(method, path, payload, timeout=15, base=engine["base"])
@@ -609,12 +621,36 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             return self._send(502, json.dumps({"detail": "Image engine unavailable: " + str(exc)}))
 
+    def _image_file(self, name):
+        engine = _image_engine()
+        if not engine:
+            return self._send(404, "No image engine", "text/plain")
+        if not name or any(char in name for char in "/\\:\x00"):
+            return self._send(404, "Image not found", "text/plain")
+        try:
+            status, content_type, data = http_bytes("/files/" + quote(name, safe=""), timeout=30, base=engine["base"])
+            return self._send(status, data, content_type)
+        except urllib.error.HTTPError as exc:
+            return self._send(exc.code, exc.read(12000))
+        except Exception:
+            return self._send(502, "Image engine unavailable", "text/plain")
+
     def do_GET(self):
         parsed_path = urlparse(self.path)
-        if parsed_path.path == "/":
-            if "text_to_image" in _engine(None)["capabilities"]:
+        if parsed_path.path == "/api/workspaces":
+            return self._send(200, json.dumps(_workspaces()))
+        if parsed_path.path in ("/", "/image", "/video"):
+            image_view = parsed_path.path == "/image" or (parsed_path.path == "/" and "text_to_image" in _engine(None)["capabilities"])
+            workspace = "image" if image_view else "video"
+            if not _workspaces()[workspace]:
+                return self._send(404, "This workspace has no configured engine.", "text/plain")
+            if image_view:
                 return self._send(200, Path(__file__).with_name("image_studio.html").read_bytes(), "text/html; charset=utf-8")
             return self._send(200, PAGE, "text/html; charset=utf-8")
+        if parsed_path.path in ("/api/images/health", "/api/images/gallery", "/api/images/gallery/trash"):
+            return self._image_proxy("GET", parsed_path.path.removeprefix("/api/images"))
+        if parsed_path.path.startswith("/api/images/files/"):
+            return self._image_file(unquote(parsed_path.path.removeprefix("/api/images/files/")))
         if parsed_path.path in ("/image_studio.js", "/image_studio.css"):
             kind = "text/javascript" if parsed_path.path.endswith(".js") else "text/css"
             return self._send(200, Path(__file__).with_name(parsed_path.path[1:]).read_bytes(), kind + "; charset=utf-8")
@@ -644,6 +680,8 @@ class Handler(BaseHTTPRequestHandler):
                 "ok": True, "default": DEFAULT_ENGINE_ID, "engines": engines,
             }))
         if parsed_path.path == "/api/gallery":
+            if parse_qs(parsed_path.query).get("workspace") != ["video"] and "text_to_image" in _engine(None)["capabilities"]:
+                return self._image_proxy("GET", "/gallery")
             try:
                 items = _gallery_items()
                 if items is None:
@@ -656,6 +694,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps({"ok": False, "items": [], "error": str(exc)}))
         if parsed_path.path == "/api/gallery/file":
             name = parse_qs(parsed_path.query).get("name", [""])[0]
+            if Path(name).suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"} and "text_to_image" in _engine(None)["capabilities"]:
+                return self._image_file(name)
             path = _gallery_path(name)
             if not path or not path.is_file():
                 return self._send(404, "not found", "text/plain")
@@ -676,6 +716,8 @@ class Handler(BaseHTTPRequestHandler):
             name = query.get("name", [""])[0].split("/")[-1]
             if not name:
                 return self._send(400, "missing name", "text/plain")
+            if "text_to_image" in engine["capabilities"]:
+                return self._image_file(name)
             local_path = _gallery_path(name)
             if local_path and local_path.is_file():
                 try:
@@ -706,7 +748,7 @@ class Handler(BaseHTTPRequestHandler):
         if origin and urlparse(origin).netloc != self.headers.get("Host"):
             return self._send(403, json.dumps({"detail": "Cross-origin writes are not accepted"}))
         path = urlparse(self.path).path
-        if path in {"/api/images/jobs", "/api/images/enhance"} or re.fullmatch(r"/api/images/jobs/img_[a-f0-9]{24}/cancel", path):
+        if path in {"/api/images/jobs", "/api/images/enhance", "/api/images/gallery/trash", "/api/images/gallery/restore"} or re.fullmatch(r"/api/images/jobs/img_[a-f0-9]{24}/cancel", path):
             try:
                 payload = self._read_json()
                 if not isinstance(payload, dict):
@@ -866,7 +908,7 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
   @media(max-width:760px){body{background:var(--bg)}header{padding:10px 12px;gap:9px}header .tagline{display:none}header h1{font-size:16px}#ep{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mark{width:29px;height:29px}main{margin:10px auto 28px;padding:0 8px;gap:10px}.card{border-radius:12px}.engine-bar{grid-template-columns:1fr auto;padding:13px 14px;gap:10px}.engine-copy{grid-column:1/-1;grid-row:2}.engine-copy .sub{white-space:normal}.settings-panel{padding:14px}.settings-grid{grid-template-columns:1fr 1fr}.composer,.lab-layout{grid-template-columns:1fr;gap:14px}.prompt-head{align-items:flex-start;flex-direction:column}.prompt-controls{justify-content:flex-start}.prompt-format select{font-size:16px}.lab-side{position:static}.scene-grid{grid-template-columns:1fr}.panel{padding:14px}.panel-head,.gallery-head{flex-wrap:wrap;margin-bottom:14px}.tabs{padding:5px;gap:4px}.tab{flex:1 0 auto;padding:10px 12px}.drop{min-height:112px}.preview{height:142px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row .seed,.row .duration{min-width:0;flex:initial}.row .grow{display:none}.row #rnd,.row .go{grid-column:1/-1;width:100%}.result-tools{align-items:flex-start;flex-wrap:wrap}.result-tools .dl{padding:8px 0}.scene{padding:10px}.scene textarea{min-height:92px}.status{align-items:flex-start;overflow-wrap:anywhere}textarea,input,select{font-size:16px}.gallery{grid-template-columns:1fr}.tile .meta{padding:11px}.scene-clips{grid-template-columns:1fr}}
   @media(min-width:521px) and (max-width:760px){.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style></head><body>
-<header><span class="mark">❄</span><h1>Frosty Studio</h1><span class="sub tagline">universal video</span><span id="dot" class="dot"></span><span class="sub" id="ep">connecting…</span></header>
+<header><span class="mark">❄</span><h1>Frosty Studio</h1><span class="sub tagline">video studio</span><a id="image-workspace" class="dl" href="/image" hidden>Image Studio ↗</a><span id="dot" class="dot"></span><span class="sub" id="ep">connecting…</span></header>
 <main>
   <section class="card hero">
     <div class="engine-bar">
@@ -944,6 +986,7 @@ PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+fetch('/api/workspaces').then(r=>r.json()).then(w=>{$('#image-workspace').hidden=!w.image;}).catch(()=>{});
 let imageData=null,imageName='',timer=null,t0=0,labTimer=null,engines=[],selectedEngineId='';
 const capNames={text_to_video:'Text',image_to_video:'Image',same_face:'Same Face',native_audio:'Audio',scene_lab:'Scene Lab'};
 const selectedEngine=()=>engines.find(x=>x.id===selectedEngineId)||engines[0]||null;
@@ -1040,7 +1083,7 @@ function applyEngine(){const engine=selectedEngine();if(!engine)return;const con
   $('#settings-note').hidden=!!(controls.resolutions?.length||controls.aspect_ratios?.length||controls.steps||controls.guidance||controls.negative_prompt);
   if(!hasCap('same_face')){$('#lock').checked=false;$('#lab-lock').checked=false;$('#continuity').disabled=false;}$('#lock-help').textContent=hasCap('same_face')?'Use the image as an identity reference instead of the opening frame.':'This model uses the image as an opening-frame guide; identity lock is unavailable.';
   $('#lab-lock-help').textContent=hasCap('same_face')?'Reference the same face in every scene.':'Same Face is unavailable for this model.';renderImage();}
-async function refreshEngines(){try{const previous=selectedEngineId||$('#engine-select').value,r=await fetch('/api/engines',{cache:'no-store'}),j=await r.json();if(!j.ok)throw new Error(j.error||'Could not load models');engines=j.engines||[];selectedEngineId=engines.some(x=>x.id===previous)?previous:(j.default||engines[0]?.id||'');
+async function refreshEngines(){try{const previous=selectedEngineId||$('#engine-select').value,r=await fetch('/api/engines',{cache:'no-store'}),j=await r.json();if(!j.ok)throw new Error(j.error||'Could not load models');engines=(j.engines||[]).filter(x=>x.capabilities?.includes("text_to_video"));selectedEngineId=engines.some(x=>x.id===previous)?previous:(engines.some(x=>x.id===j.default)?j.default:engines[0]?.id||'');
   const select=$('#engine-select');select.innerHTML='';engines.forEach(engine=>{const option=document.createElement('option');option.value=engine.id;const state=engine.health?.ready?'●':engine.health?.loading||engine.health?.status==='loading'?'◌':'○';option.textContent=state+' '+engine.label;select.appendChild(option);});select.value=selectedEngineId;applyEngine();}
   catch(e){$('#dot').className='dot down';$('#ep').textContent='model menu offline';$('#engine-description').textContent=e.message||e;}}
 
@@ -1076,7 +1119,7 @@ function renderGallery(items){const root=$('#gallery');root.innerHTML='';$('#gal
     const prompt=document.createElement('div');prompt.textContent=item.prompt||item.name;prompt.title=item.prompt||item.name;
     const tools=document.createElement('div');tools.className='tile-tools';const details=document.createElement('span');details.textContent=[formatDate(item.created_at),formatBytes(item.size)].filter(Boolean).join(' · ');
     const link=document.createElement('a');link.className='dl';link.href=item.file_url;link.download=item.name;link.textContent='Download ↓';tools.append(details,link);meta.append(title,prompt,tools);tile.append(video,meta);root.appendChild(tile);});}
-async function loadGallery(){try{$('#gallery-summary').textContent='Loading saved videos…';const r=await fetch('/api/gallery',{cache:'no-store'}),j=await r.json();if(!j.ok)throw new Error(j.error||'Gallery unavailable');renderGallery(j.items||[]);}
+async function loadGallery(){try{$('#gallery-summary').textContent='Loading saved videos…';const r=await fetch('/api/gallery?workspace=video',{cache:'no-store'}),j=await r.json();if(!j.ok)throw new Error(j.error||'Gallery unavailable');renderGallery(j.items||[]);}
   catch(e){$('#gallery-summary').textContent='Gallery unavailable';$('#gallery').innerHTML='<div class="empty-gallery"><span class="err">'+esc(e.message||e)+'</span></div>';}}
 $('#gallery-refresh').onclick=loadGallery;
 

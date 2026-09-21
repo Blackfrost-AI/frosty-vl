@@ -1,0 +1,21 @@
+{
+  "default": "qwen-image-2.1",
+  "engines": [
+    {
+      "id": "qwen-image-2.1",
+      "label": "Qwen Image 2.1",
+      "base": "http://127.0.0.1:8899",
+      "description": "Image creation, multi-reference editing and transparent PNGs.",
+      "capabilities": ["text_to_image", "image_edit", "multi_reference", "transparent_png", "mask_edit", "annotation_edit"],
+      "controls": {"max_references": 10, "resolutions": [512, 1024, 2048], "steps": {"min": 1, "max": 80, "default": 40}}
+    },
+    {
+      "id": "video",
+      "label": "Video engine",
+      "base": "http://127.0.0.1:8898",
+      "description": "Your separately configured Frosty video backend.",
+      "capabilities": ["text_to_video", "image_to_video", "same_face", "native_audio", "scene_lab"],
+      "controls": {"durations": [5, 8, 10, 12, 14]}
+    }
+  ]
+}

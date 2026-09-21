@@ -1,10 +1,17 @@
 ![Frosty VL](assets/frosty-vl-hero.png)
 
-# Frosty VL — a universal, multi-engine video Studio
+# Frosty VL — image and video Studio
 
-**Qwen Image 2.1:** the optional [Image Studio](IMAGE-STUDIO.md) adds text-to-image,
-multi-reference editing, transparent PNGs, subject extraction, masks, and painted
-annotations, including a native Windows/CUDA profile for smaller GPUs.
+**Qwen Image 2.1:** the optional [Image Studio](IMAGE-STUDIO.md) adds creation and
+editing with up to ten visible reference inputs, official prompt enhancement,
+transparent PNGs, masks, annotations, and recoverable gallery deletion. It
+includes a native Windows/CUDA profile and optional image DWM.
+
+Image and video workspaces live together in this repository and Studio proxy.
+Open `/image` or `/video`; navigation links appear when both engine types are
+configured. `/` opens the default engine's workspace. See
+[`config/engines.combined.example.json`](config/engines.combined.example.json).
+Each model keeps its own loader and backend. The video setup follows below.
 
 Frosty VL is a **universal, multi-engine video Studio** by Blackfrost — one API and
 one browser Studio across pluggable render engines. It ships **no model weights**:
@@ -39,6 +46,7 @@ It provides:
 Frosty VL is engine-agnostic — the Studio and API stay the same while engines plug in:
 
 - **Qwen3-VL** — persona-steering + golden-safety floor (this release); bring your own weights.
+- **Qwen Image 2.1** — optional image creation/editing and official prompt enhancers; see [Image Studio setup](IMAGE-STUDIO.md).
 - **Wan 2.2 TI2V** — Apache-2.0 text/image-to-video (optional profile).
 - **More to come** — additional engines and capabilities are on the roadmap.
 
