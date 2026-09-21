@@ -726,7 +726,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._image_proxy("GET", parsed_path.path.removeprefix("/api/images"))
         if parsed_path.path.startswith("/api/images/files/"):
             return self._image_file(unquote(parsed_path.path.removeprefix("/api/images/files/")))
-        if parsed_path.path in ("/image_studio.js", "/image_studio.css", "/video_studio.js", "/video_studio.css"):
+        if parsed_path.path in ("/image_studio.js", "/image_studio.css", "/video_studio.js", "/video_studio.css", "/studio_theme.css"):
             kind = "text/javascript" if parsed_path.path.endswith(".js") else "text/css"
             return self._send(200, Path(__file__).with_name(parsed_path.path[1:]).read_bytes(), kind + "; charset=utf-8")
         if re.fullmatch(r"/api/images/jobs/img_[a-f0-9]{24}", parsed_path.path):

@@ -1,7 +1,8 @@
 # Frosty VL video workspace
 
 Open `/video` in Frosty Studio. Image and video share navigation, job-oriented
-workflows and recoverable galleries. See [deployment](CUSTOMER-INSTALL.md) for an
+workflows and recoverable galleries. Both use the same dark Frosty palette, ice-cyan
+accents, mint action buttons and shared brand tokens in `ui/studio_theme.css`. See [deployment](CUSTOMER-INSTALL.md) for an
 existing VL engine, [Image Studio](IMAGE-STUDIO.md) for Qwen Image, and
 [MCP setup](MCP.md) for agents. No model downloads are needed to run the companion.
 

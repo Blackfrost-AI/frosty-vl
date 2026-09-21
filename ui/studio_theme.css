@@ -1,0 +1,22 @@
+/* Frosty Image is the visual reference for every Studio workspace. */
+:root{
+  color-scheme:dark;
+  --bg:#0c1014;
+  --panel:#11171d;
+  --line:#26313a;
+  --text:#e7eef3;
+  --muted:#8b9ba8;
+  --ice:#9de6ed;
+  --accent:#b9f3c6;
+  --header:#0f151b;
+  --input:#0d141a;
+  --button:#172029;
+  --button-text:#c8d6df;
+  --selected:#22363c;
+  --selected-line:#67939b;
+  --danger:#ffb7ab;
+}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--text);font-size:17px;font-weight:760;letter-spacing:2px}
+.brand-mark{font-size:32px;color:var(--ice)}
+.brand small{font-size:10px;display:block;letter-spacing:2.4px;font-weight:500;color:var(--muted)}
+@media(max-width:720px){.brand{font-size:14px}.brand-mark{font-size:27px}}

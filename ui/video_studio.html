@@ -1,9 +1,9 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#ffffff">
-<title>Frosty VL · Video Studio</title>
+<meta name="theme-color" content="#0c1014">
+<title>Frosty · Video Studio</title>
 <link rel="stylesheet" href="/video_studio.css"></head><body>
-<header><span class="mark">❄</span><h1>Frosty Studio</h1><span class="sub tagline">video studio</span><a id="image-workspace" class="dl" href="/image" hidden>Image Studio ↗</a><span id="dot" class="dot"></span><span class="sub" id="ep">connecting…</span></header>
+<header><a class="brand" href="/video" aria-label="Frosty Video Studio"><span class="brand-mark">❄</span><span>FROSTY <small>VIDEO STUDIO</small></span></a><div class="video-header-actions"><span class="model-state"><i id="dot" class="dot"></i><span id="ep">connecting…</span></span><a id="image-workspace" class="ghost workspace-link" href="/image" hidden>Image Studio ↗</a></div></header>
 <main>
   <section class="card hero">
     <div class="engine-bar">
@@ -77,5 +77,6 @@
       <div class="gallery" id="gallery"><div class="empty-gallery sub">Loading your saved videos…</div></div>
     </div>
   <div class="panel" id="jobs-panel"><div class="panel-head"><div><h2>Render jobs</h2><div class="sub">One render at a time per engine. Closing this page does not cancel work.</div></div><button id="jobs-refresh" class="ghost" type="button">Refresh</button></div><p class="sub">Queued jobs cancel immediately. Running jobs stop after the current render; completed clips stay in the gallery. Jobs clear when Studio restarts.</p><div id="video-jobs" class="job-list"></div></div></section>
+<footer><span>BLACKFROST</span><span>Your videos stay on your machine.</span></footer>
 </main><dialog id="image-library-dialog"><div class="panel-head"><h2>Choose an opening frame</h2><button id="close-image-library" class="ghost" type="button">Close</button></div><div id="image-library-items" class="reference-library"></div></dialog>
 <script src="/video_studio.js" defer></script></body></html>
