@@ -7,6 +7,7 @@ browser workspace. Includes a native Windows/CUDA profile and optional Blackfros
 image DWM. Your models and images stay on your machine.
 
 **[Set up Qwen Image 2.1 →](IMAGE-STUDIO.md)** ·
+**[Connect your agent with MCP →](MCP.md)** ·
 [Official model](https://huggingface.co/Qwen/Qwen-Image-2.1) ·
 [Official Qwen demo](https://modelscope.cn/studios/EA-Qwen-Image/Qwen-Image-2.1)
 
@@ -36,6 +37,20 @@ configured. `/` opens the default engine's workspace. See
 [`config/engines.combined.example.json`](config/engines.combined.example.json).
 Each model keeps its own loader and backend. Qwen Image 2.1 is the primary image
 workspace; the existing Qwen3-VL and Wan video engines remain available alongside it.
+
+## Agent integration and the video workflow
+
+The optional **[MCP companion](MCP.md)** gives community agents 12 tools for both
+workspaces: generate, enhance image prompts, inspect jobs, cancel, preview, search
+the gallery, download, delete to Trash and restore. Use local stdio or authenticated
+Streamable HTTP on a private/VPN address. The companion needs no GPU or model weights.
+
+**[Video Studio 1.2](VIDEO-STUDIO.md)** adds queued clips and movies, saved browser
+drafts, a Jobs view, scene reordering, an editable shot builder, quality presets,
+Frosty Image opening-frame selection, and a gallery with Delete/Undo/Trash/Restore.
+Controls follow each engine's capabilities. These additions are tested with
+isolated backends and synthetic FFmpeg media; live VL inference still needs a
+loaded model for validation.
 
 ## Video engines and deployment
 

@@ -6,6 +6,10 @@ vectors do not apply to the separate image engine. Both workspaces can share one
 Studio proxy using `config/engines.combined.example.json`. Keep each backend on
 loopback and the Studio on the operator's existing private connection.
 
+For the optional **MCP companion only**, use [MCP.md](MCP.md). It connects to an
+already configured Studio and does not install or select a model. The model
+installation questions below apply when installing a video render engine.
+
 **Audience: an AI agent installing Frosty VL on behalf of its operator.**
 Read this whole file first, then follow it top to bottom. Do not skip the questions in
 Step 0 — they are required for correctness and licensing.

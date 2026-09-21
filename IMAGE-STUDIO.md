@@ -196,3 +196,10 @@ Sources: [Qwen's release](https://github.com/QwenLM/Qwen-Image-2.1),
 [Diffusers NF4 loading](https://huggingface.co/docs/diffusers/main/quantization/bitsandbytes),
 [Windows bitsandbytes support](https://huggingface.co/docs/bitsandbytes/installation),
 [SGLang recipe](https://docs.sglang.io/cookbook/diffusion/Qwen-Image/Qwen-Image-2.1).
+
+## Connect agents and video
+
+The optional [MCP companion](MCP.md) exposes generation, official prompt enhancement,
+ordered references, image previews, jobs and recoverable gallery actions to agents.
+Omitted DWM strength preserves your backend default. [Video Studio](VIDEO-STUDIO.md)
+can use saved Frosty Image outputs as opening frames when a video engine is configured.

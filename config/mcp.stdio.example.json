@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "frosty": {
+      "command": "/absolute/path/frosty-vl/.venv-mcp/bin/python",
+      "args": ["/absolute/path/frosty-vl/scripts/start-mcp.py"],
+      "env": {
+        "FROSTY_STUDIO_URL": "http://127.0.0.1:8890"
+      }
+    }
+  }
+}

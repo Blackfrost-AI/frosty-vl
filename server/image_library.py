@@ -20,8 +20,8 @@ from urllib.parse import quote
 TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
 
 
-def asset_id(name):
-    return "image_" + hashlib.sha256(name.encode("utf-8")).hexdigest()[:32]
+def asset_id(name, prefix="image"):
+    return prefix + "_" + hashlib.sha256(name.encode("utf-8")).hexdigest()[:32]
 
 
 def _plain(path):
@@ -31,10 +31,10 @@ def _plain(path):
     return info
 
 
-def _name(name):
+def _name(name, types=TYPES):
     if not isinstance(name, str) or not name or name in {".", ".."} or any(c in name for c in '/\\:\x00'):
         raise ValueError("Invalid image name")
-    if name.rstrip(" .") != name or Path(name).suffix.lower() not in TYPES:
+    if name.rstrip(" .") != name or Path(name).suffix.lower() not in types:
         raise ValueError("Unsupported image name")
     return name
 
@@ -58,11 +58,24 @@ def _write(path, data):
 
 
 class ImageLibrary:
+    media_types = TYPES
+    id_prefix = "image"
+    trash_name = ".frosty-trash"
+    file_prefix = "/api/images/files/"
+    metadata_fields = ("prompt", "effective_prompt", "seed", "mode", "width", "height",
+                       "num_inference_steps", "dwm_scale", "reference_count")
+
+    def _name(self, name):
+        return _name(name, self.media_types)
+
+    def _id(self, name):
+        return asset_id(name, self.id_prefix)
+
     def __init__(self, root):
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
-        self.trash = self.root / ".frosty-trash"
+        self.trash = self.root / self.trash_name
         if self.trash.exists() or self.trash.is_symlink():
             _plain(self.trash)
         self.trash.mkdir(exist_ok=True)
@@ -99,8 +112,8 @@ class ImageLibrary:
     def _read(self, folder):
         path = self._path("entry.json", folder)
         entry = json.loads(path.read_text(encoding="utf-8"))
-        name = _name(entry["name"])
-        if entry["id"] != folder.name or entry["asset_id"] != asset_id(name):
+        name = self._name(entry["name"])
+        if entry["id"] != folder.name or entry["asset_id"] != self._id(name):
             raise ValueError("Invalid Trash journal identity")
         if entry["state"] not in {"moving", "trashed", "restoring", "restored"}:
             raise ValueError("Invalid Trash journal state")
@@ -160,23 +173,21 @@ class ImageLibrary:
                     metadata = data
         except (OSError, ValueError):
             pass
-        fields = {key: metadata.get(key) for key in (
-            "prompt", "effective_prompt", "seed", "mode", "width", "height",
-            "num_inference_steps", "dwm_scale", "reference_count")}
-        return dict(fields, id=asset_id(path.name), name=path.name,
-                    content_type=TYPES[path.suffix.lower()], size=info.st_size,
+        fields = {key: metadata.get(key) for key in self.metadata_fields}
+        return dict(fields, id=self._id(path.name), name=path.name,
+                    content_type=self.media_types[path.suffix.lower()], size=info.st_size,
                     created_at=info.st_mtime,
-                    file_url="/api/images/files/" + quote(path.name))
+                    file_url=self.file_prefix + quote(path.name))
 
     def gallery(self):
         with self.lock:
             hidden = self._hidden()
             items = []
             for path in self.root.iterdir():
-                if path.name in hidden or path.suffix.lower() not in TYPES:
+                if path.name in hidden or path.suffix.lower() not in self.media_types:
                     continue
                 try:
-                    _name(path.name)
+                    self._name(path.name)
                     if stat.S_ISREG(_plain(path).st_mode):
                         items.append(self._item(path))
                 except (OSError, ValueError):
@@ -187,7 +198,7 @@ class ImageLibrary:
 
     def file(self, name):
         with self.lock:
-            name = _name(name)
+            name = self._name(name)
             if name in self._hidden():
                 raise FileNotFoundError("Image is in Trash")
             path = self._path(name)
@@ -206,7 +217,7 @@ class ImageLibrary:
 
     def move_to_trash(self, identifier):
         with self.lock:
-            if not re.fullmatch(r"image_[a-f0-9]{32}", identifier):
+            if not re.fullmatch(self.id_prefix + r"_[a-f0-9]{32}", identifier):
                 raise ValueError("Invalid image ID")
             previous = next((e for e in self._entries() if e["asset_id"] == identifier and e["state"] != "restored"), None)
             if previous:
@@ -240,7 +251,7 @@ class ImageLibrary:
 
     def publish(self, image, name, metadata):
         with self.lock:
-            target = self._path(_name(name))
+            target = self._path(self._name(name))
             sidecar = self._path(name + ".json")
             if target.exists() or sidecar.exists():
                 raise FileExistsError("Output name already exists")

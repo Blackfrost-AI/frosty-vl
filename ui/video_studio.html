@@ -1,0 +1,81 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>Frosty VL · Video Studio</title>
+<link rel="stylesheet" href="/video_studio.css"></head><body>
+<header><span class="mark">❄</span><h1>Frosty Studio</h1><span class="sub tagline">video studio</span><a id="image-workspace" class="dl" href="/image" hidden>Image Studio ↗</a><span id="dot" class="dot"></span><span class="sub" id="ep">connecting…</span></header>
+<main>
+  <section class="card hero">
+    <div class="engine-bar">
+      <div><label for="engine-select">Video model</label><select id="engine-select" aria-label="Video model"><option>Loading models…</option></select></div>
+      <div class="engine-copy"><b id="engine-title">Connecting to engines…</b><span class="sub" id="engine-description">Checking the available render models.</span><div class="engine-caps" id="engine-caps"></div></div>
+      <button class="ghost" id="settings-toggle" type="button" aria-expanded="false">Settings</button>
+    </div>
+    <div class="settings-panel" id="settings-panel" hidden>
+      <div class="settings-grid">
+        <div id="resolution-field"><label for="resolution">Resolution</label><select id="resolution"></select></div>
+        <div id="aspect-field"><label for="aspect-ratio">Frame</label><select id="aspect-ratio"></select></div>
+        <div id="steps-field"><label for="steps">Quality steps</label><input id="steps" type="number" inputmode="numeric"></div>
+        <div id="guidance-field"><label for="guidance">Prompt strength</label><input id="guidance" type="number" inputmode="decimal"></div>
+        <div class="settings-wide" id="negative-field"><label for="negative-prompt">Avoid <span class="sub">(negative prompt)</span></label><textarea id="negative-prompt" placeholder="Things you do not want in the video…"></textarea></div>
+        <div class="settings-wide settings-note" id="settings-note">This model uses its tuned defaults. Seed and duration remain available in the Create panel.</div>
+      </div>
+    </div>
+    <nav class="tabs"><button class="tab active" data-tab="create">Create</button><button class="tab" data-tab="lab">Scene lab</button><button class="tab" data-tab="gallery">Gallery</button><button class="tab" data-tab="jobs">Jobs <span id="jobs-count">0</span></button></nav>
+    <div class="panel active" id="create-panel">
+      <div class="panel-head"><div><h2>Create a clip</h2><div class="sub">Prompt from scratch or animate an uploaded image.</div></div><span class="badge" id="duration-badge">5–14 sec</span></div>
+      <div class="composer">
+        <div>
+          <div class="prompt-head">
+            <label for="p">Direction</label>
+            <div class="prompt-controls">
+              <label class="prompt-format" for="prompt-format"><span>Format</span><select id="prompt-format"><option value="text">Natural language</option><option value="json">Structured JSON</option></select></label>
+              <button class="ghost" id="json-template" type="button" hidden>Load detailed template</button>
+              <button class="ghost" id="json-format" type="button" hidden>Format JSON</button>
+            </div>
+          </div>
+          <textarea id="p" placeholder="Describe the subject, action, camera, lighting, dialogue, and sound…">A red fox trotting through a snowy pine forest, cinematic tracking shot, soft daylight, natural forest ambience</textarea>
+          <details class="shot-builder"><summary>Shot builder · shape your direction</summary><div class="settings-grid"><div><label for="shot-camera">Camera</label><input id="shot-camera" placeholder="Slow dolly, 35mm lens"></div><div><label for="shot-light">Lighting &amp; style</label><input id="shot-light" placeholder="Soft window light, film grain"></div><div><label for="shot-action">Motion</label><input id="shot-action" placeholder="One continuous action"></div><div><label for="shot-audio">Sound</label><input id="shot-audio" placeholder="Dialogue, ambience, or silence"></div></div><button id="apply-shot" class="ghost" type="button">Append to direction</button><span class="sub">Build an editable prompt locally; no extra model required.</span></details><span class="sub prompt-note" id="prompt-note">Natural-language direction sent directly to the selected model.</span>
+        </div>
+        <div>
+          <label>Reference <span class="sub">· one opening frame or identity image</span></label><button class="ghost" id="choose-image-library" type="button" hidden>Choose from Frosty Image</button>
+          <div class="drop image-drop"><div class="empty"><span class="icon">▧</span><b>Add an image</b><br><span class="sub">drop, paste, or choose a file</span></div><div class="preview" hidden></div></div>
+          <input class="image-input" type="file" accept="image/*" hidden>
+          <div class="options"><label class="toggle-line"><input id="lock" type="checkbox" disabled><span><b>Same Face</b><small id="lock-help">Use the image as an identity reference instead of the opening frame.</small></span></label></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="duration"><label for="duration">Length</label><select id="duration"><option value="5">5 seconds</option><option value="8">8 seconds</option><option value="10">10 seconds</option><option value="12">12 seconds</option><option value="14">14 seconds</option></select></div>
+        <div class="seed"><label for="s">Seed <span class="sub">(blank = random)</span></label><input id="s" placeholder="random" inputmode="numeric"></div>
+        <button class="ghost" id="rnd" type="button">Randomize</button><div id="quality-field" hidden><label for="quality-preset">Quality preset</label><select id="quality-preset"><option value="standard">Standard</option><option value="draft">Draft</option><option value="high">High detail</option></select></div><div class="grow"></div><button class="go" id="go" type="button">Queue clip</button>
+      </div>
+      <div class="sub" id="draft-note">Your direction and settings are saved in this browser. Reattach reference images after a reload.</div><div class="status" id="status" role="status" aria-live="polite"></div><div class="result" id="result"></div>
+    </div>
+
+    <div class="panel" id="lab-panel">
+      <div class="panel-head"><div><h2>Scene lab</h2><div class="sub">Build a longer movie shot by shot; the selected engine renders and joins every scene.</div></div><span class="badge" id="lab-engine-badge">selected model</span></div>
+      <div class="field"><label for="story">Story + continuity notes <span class="sub">(optional)</span></label><textarea id="story" style="min-height:74px" placeholder="The same traveler crosses the desert at dusk. Warm 35mm film look, restrained camera movement, continuous wardrobe and weather."></textarea></div>
+      <div class="lab-layout">
+        <div><label>Scenes</label><div class="scenes" id="scenes"></div><button class="add-scene" id="add-scene" type="button">+ Add scene</button></div>
+        <aside class="lab-side">
+          <label>Character / opening image <span class="sub">(optional)</span></label>
+          <div class="drop image-drop"><div class="empty"><span class="icon">▧</span><b>Add an image</b><br><span class="sub">shared with Create clip</span></div><div class="preview" hidden></div></div>
+          <input class="image-input" type="file" accept="image/*" hidden>
+          <div class="options">
+            <label class="toggle-line"><input id="lab-lock" type="checkbox" disabled><span><b>Same Face</b><small id="lab-lock-help">Reference the same face in every scene.</small></span></label>
+            <label class="toggle-line"><input id="continuity" type="checkbox" checked><span><b>Match-cut scenes</b><small>Start each new scene from the prior scene's last frame.</small></span></label>
+          </div>
+          <div class="field" style="margin-top:12px"><label for="lab-seed">Base seed</label><input id="lab-seed" placeholder="random" inputmode="numeric"></div>
+          <button class="go" id="lab-go" type="button" style="width:100%;margin-top:12px">Queue movie</button>
+        </aside>
+      </div>
+      <div class="status" id="lab-status"></div><div id="lab-progress" class="progress" hidden><span style="width:0"></span></div><div class="result" id="lab-result"></div>
+    </div>
+
+    <div class="panel" id="gallery-panel">
+      <div class="gallery-head"><div><h2>Gallery</h2><div class="sub" id="gallery-summary">Loading saved videos…</div></div><button class="ghost" id="gallery-refresh" type="button">Refresh</button></div><div class="gallery-toolbar"><input id="gallery-search" aria-label="Search saved videos" placeholder="Search prompts, models or filenames"><label><input type="checkbox" id="select-all-videos"> Select visible</label><button id="video-trash" class="ghost" type="button">Trash</button><button id="delete-videos" class="danger" type="button" disabled>Delete selected</button><button id="restore-videos" class="ghost" type="button" hidden disabled>Restore selected</button><button id="undo-video-trash" class="ghost" type="button" hidden>Undo deletion</button></div><div id="gallery-message" role="status" aria-live="polite"></div>
+      <div class="gallery" id="gallery"><div class="empty-gallery sub">Loading your saved videos…</div></div>
+    </div>
+  <div class="panel" id="jobs-panel"><div class="panel-head"><div><h2>Render jobs</h2><div class="sub">One render at a time per engine. Closing this page does not cancel work.</div></div><button id="jobs-refresh" class="ghost" type="button">Refresh</button></div><p class="sub">Queued jobs cancel immediately. Running jobs stop after the current render; completed clips stay in the gallery. Jobs clear when Studio restarts.</p><div id="video-jobs" class="job-list"></div></div></section>
+</main><dialog id="image-library-dialog"><div class="panel-head"><h2>Choose an opening frame</h2><button id="close-image-library" class="ghost" type="button">Close</button></div><div id="image-library-items" class="reference-library"></div></dialog>
+<script src="/video_studio.js" defer></script></body></html>

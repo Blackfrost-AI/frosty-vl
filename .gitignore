@@ -28,3 +28,6 @@ server/data/*.json
 # ComfyUI node vectors — delivered to licensed customers, not public
 comfyui/data/*.npy
 comfyui/data/*.json
+
+# Optional MCP virtual environment
+.venv-mcp/

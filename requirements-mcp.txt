@@ -1,0 +1,3 @@
+# Lightweight companion only; no CUDA, Torch, Diffusers or model weights.
+mcp==2.2.0
+pillow>=11.3,<13
