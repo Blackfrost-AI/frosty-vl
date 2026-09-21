@@ -1,17 +1,48 @@
-![Frosty VL](assets/frosty-vl-hero.png)
+# Frosty Studio — Qwen Image 2.1
 
-# Frosty VL — image and video Studio
+**Create, edit, and compose with Qwen Image 2.1 in one local image studio.**
+Bring up to ten reference images, refine your prompt with Qwen's official
+enhancers, and work with transparent PNGs, masks, and annotations from a single
+browser workspace. Includes a native Windows/CUDA profile and optional Blackfrost
+image DWM. Your models and images stay on your machine.
 
-**Qwen Image 2.1:** the optional [Image Studio](IMAGE-STUDIO.md) adds creation and
-editing with up to ten visible reference inputs, official prompt enhancement,
-transparent PNGs, masks, annotations, and recoverable gallery deletion. It
-includes a native Windows/CUDA profile and optional image DWM.
+**[Set up Qwen Image 2.1 →](IMAGE-STUDIO.md)** ·
+[Official model](https://huggingface.co/Qwen/Qwen-Image-2.1) ·
+[Official Qwen demo](https://modelscope.cn/studios/EA-Qwen-Image/Qwen-Image-2.1)
+
+- **Create or edit automatically:** add references to edit or compose; use a
+  prompt alone to create something new.
+- **Up to ten references:** upload, paste, reorder, replace, preview, or append
+  saved images from the gallery.
+- **Official prompt enhancement:** preview and edit the expanded prompt, or
+  enhance automatically when generating.
+- **RGBA and local edits:** transparent generation, subject extraction, mask
+  painting and annotated editing.
+- **A recoverable gallery:** download, reuse, delete individually or in bulk,
+  Undo, and restore from Trash.
+- **Local controls:** seeds, steps, variations, reference detail, DWM strength,
+  progress and cancellation.
+
+The Windows NF4 profile has been tested on an RTX 4080 with 16 GB VRAM. Reference
+count and output resolution affect memory use; see the [image setup guide](IMAGE-STUDIO.md)
+for the runtime, model paths and private access configuration. Model weights are
+supplied separately.
+
+## Image and video, together
 
 Image and video workspaces live together in this repository and Studio proxy.
 Open `/image` or `/video`; navigation links appear when both engine types are
 configured. `/` opens the default engine's workspace. See
 [`config/engines.combined.example.json`](config/engines.combined.example.json).
-Each model keeps its own loader and backend. The video setup follows below.
+Each model keeps its own loader and backend. Qwen Image 2.1 is the primary image
+workspace; the existing Qwen3-VL and Wan video engines remain available alongside it.
+
+## Video engines and deployment
+
+The sections below describe the existing video setup. For Qwen Image 2.1,
+start with the [Image Studio guide](IMAGE-STUDIO.md).
+
+![Frosty VL video Studio](assets/frosty-vl-hero.png)
 
 Frosty VL is a **universal, multi-engine video Studio** by Blackfrost — one API and
 one browser Studio across pluggable render engines. It ships **no model weights**:
@@ -45,8 +76,8 @@ It provides:
 
 Frosty VL is engine-agnostic — the Studio and API stay the same while engines plug in:
 
-- **Qwen3-VL** — persona-steering + golden-safety floor (this release); bring your own weights.
-- **Qwen Image 2.1** — optional image creation/editing and official prompt enhancers; see [Image Studio setup](IMAGE-STUDIO.md).
+- **Qwen Image 2.1** — the primary image workspace: creation, reference editing and official prompt enhancers; see [Image Studio setup](IMAGE-STUDIO.md).
+- **Qwen3-VL** — video generation with persona-steering + golden-safety floor; bring your own weights.
 - **Wan 2.2 TI2V** — Apache-2.0 text/image-to-video (optional profile).
 - **More to come** — additional engines and capabilities are on the roadmap.
 

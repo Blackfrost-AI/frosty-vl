@@ -1,6 +1,6 @@
 # Qwen Image 2.1 Studio
 
-The optional image engine adds a dedicated image workspace to Frosty Studio.
+Qwen Image 2.1 is the primary image workspace in Frosty Studio.
 It uses the official Qwen Image 2.1 Diffusers pipeline and local weights. The
 existing video engines and their model loaders remain separate.
 
