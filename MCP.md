@@ -1,5 +1,7 @@
 # Frosty Image + VL MCP server
 
+[Overview](README.md) · [Setup chooser](GETTING-STARTED.md) · [Agent instructions](AGENT-INSTRUCTIONS.md)
+
 Give an MCP-capable agent access to your running Frosty Studio. One companion
 server covers Qwen Image 2.1, official image prompt enhancement, and the configured
 video engines. Generation returns a job ID immediately; the agent polls for results.
@@ -8,7 +10,7 @@ remain separate processes.
 
 ## Install the companion
 
-Use Python 3.10 or newer in a separate environment so the MCP SDK does not change
+Clone the repository using [Getting started](GETTING-STARTED.md), then use Python 3.10 or newer in a separate environment so the MCP SDK does not change
 an existing CUDA installation. From this repository:
 
 ```bash
@@ -49,12 +51,42 @@ For clients that use an `mcpServers` configuration, adapt
 
 On Windows, use the absolute `.venv-mcp\\Scripts\\python.exe` and
 `scripts\\start-mcp.py` paths; backslashes must be doubled in JSON.
+For example ([download this template](config/mcp.stdio.windows.example.json)):
+
+```json
+{
+  "mcpServers": {
+    "frosty": {
+      "command": "C:\\AI\\frosty-vl\\.venv-mcp\\Scripts\\python.exe",
+      "args": ["C:\\AI\\frosty-vl\\scripts\\start-mcp.py"],
+      "env": {"FROSTY_STUDIO_URL": "http://127.0.0.1:8890"}
+    }
+  }
+}
+```
+
 The launcher works from any working directory. The client starts and stops it.
 There is no extra listener in stdio mode, and stdout is reserved for MCP messages.
 
 The companion can run on the agent's computer and connect to Studio over WireGuard.
 Use the Studio's VPN address in `FROSTY_STUDIO_URL`. Download links use that same
 address, so the consuming agent/browser must also be able to reach it.
+
+## Verify the connection
+
+Reload the server entry in your actual agent client. It should discover **12 tools**,
+then successfully call `frosty_status` with `{}`. Check the expected engine IDs and
+readiness. An unconfigured or unloaded video engine does not stop you from using
+an available image engine.
+
+For a generation check, submit one small authorized image or clip, keep the job ID,
+and poll `frosty_job`. Use `workspace: "image"` or `"video"` with `job_id` set to the
+returned ID. Confirm a terminal `done` and open the output through `frosty_asset`
+or the returned link. Discovering tools alone does not verify generation.
+
+If the client fails before discovery, verify the absolute paths and run launcher
+`--help` with that same interpreter. If discovery succeeds but requests fail, check
+Studio `/api/engines` from the companion machine. See [Troubleshooting](docs/TROUBLESHOOTING.md#mcp-connection).
 
 ## Optional HTTP listener over a private network
 

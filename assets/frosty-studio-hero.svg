@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720" role="img" aria-labelledby="title desc">
+<title id="title">Frosty Studio — Qwen Image 2.1, video and agents</title>
+<desc id="desc">Blackfrost's local creative workspace: ten image references, official prompt enhancement, video scenes, and twelve MCP tools.</desc>
+<defs><linearGradient id="sky" x2="1" y2="1"><stop stop-color="#111c24"/><stop offset="1" stop-color="#0c1014"/></linearGradient><linearGradient id="ice" x2="1" y2="1"><stop stop-color="#9de6ed"/><stop offset="1" stop-color="#305962"/></linearGradient></defs>
+<rect width="1600" height="720" rx="28" fill="#0c1014"/>
+<rect x="1" y="1" width="1598" height="718" rx="28" fill="url(#sky)" stroke="#26313a"/>
+<g font-family="Arial, Helvetica, sans-serif">
+<g stroke="#9de6ed" stroke-width="3" fill="none" transform="translate(88,76)"><path d="M-22 0H22M0-22V22M-16-16L16 16M-16 16L16-16"/><path d="M-6-17L0-11L6-17M-6 17L0 11L6 17M-17-6L-11 0L-17 6M17-6L11 0L17 6"/></g>
+<text x="130" y="85" fill="#e7eef3" font-size="24" font-weight="700" letter-spacing="6">BLACKFROST</text>
+<rect x="1250" y="52" width="278" height="42" rx="21" fill="#18272a" stroke="#365257"/>
+<text x="1389" y="79" text-anchor="middle" fill="#9de6ed" font-size="17" letter-spacing="2">LOCAL CREATIVE TOOLS</text>
+<text x="64" y="197" fill="#e7eef3" font-size="86" font-weight="700" letter-spacing="-3">FROSTY STUDIO</text>
+<text x="69" y="260" fill="#9de6ed" font-size="34">Qwen Image 2.1, front and center.</text>
+<text x="69" y="311" fill="#b6c5ce" font-size="25">Create images. Build scenes. Connect your agent.</text>
+<text x="69" y="366" fill="#8b9ba8" font-size="21">One project. Dedicated engines. A consistent workspace.</text>
+<g transform="translate(1290,293)">
+<circle r="138" fill="none" stroke="#263b44"/><circle r="112" fill="none" stroke="#263b44" stroke-dasharray="3 14"/>
+<path d="M0-115L91-12L54 100H-54L-91-12Z" fill="#142b34" stroke="#9de6ed" stroke-width="2"/>
+<path d="M0-115L36-12L0 100L-36-12Z" fill="url(#ice)" opacity=".75"/>
+<path d="M-91-12H91M-54 100L0-115L54 100M-91-12L0 100L91-12" fill="none" stroke="#9de6ed" opacity=".7"/>
+</g>
+<rect x="64" y="455" width="478" height="185" rx="16" fill="#11171d" stroke="#26313a"/><text x="90" y="495" fill="#9de6ed" font-size="16" letter-spacing="3">01 / IMAGE</text><text x="90" y="536" fill="#e7eef3" font-size="27" font-weight="700">Bring your references.</text><text x="90" y="576" fill="#a7b9c4" font-size="20">10 inputs · edit · masks · RGBA</text><text x="90" y="607" fill="#a7b9c4" font-size="20">Official Qwen prompt enhancement</text><rect x="561" y="455" width="478" height="185" rx="16" fill="#11171d" stroke="#26313a"/><text x="587" y="495" fill="#9de6ed" font-size="16" letter-spacing="3">02 / VIDEO</text><text x="587" y="536" fill="#e7eef3" font-size="27" font-weight="700">Direct the next scene.</text><text x="587" y="576" fill="#a7b9c4" font-size="20">Queued clips · 2–8 scene movies</text><text x="587" y="607" fill="#a7b9c4" font-size="20">Opening frames · recoverable gallery</text><rect x="1058" y="455" width="478" height="185" rx="16" fill="#11171d" stroke="#26313a"/><text x="1084" y="495" fill="#9de6ed" font-size="16" letter-spacing="3">03 / AGENTS</text><text x="1084" y="536" fill="#e7eef3" font-size="27" font-weight="700">Make it part of your flow.</text><text x="1084" y="576" fill="#a7b9c4" font-size="20">12 MCP tools · stdio or private HTTP</text><text x="1084" y="607" fill="#a7b9c4" font-size="20">Generate · inspect · download · restore</text><text x="67" y="683" fill="#8b9ba8" font-size="17">Your models. Your machine. Your creative process.</text><text x="1532" y="683" text-anchor="end" fill="#b9f3c6" font-size="17">IMAGE + VL + MCP</text></g></svg>

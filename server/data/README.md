@@ -1,7 +1,9 @@
-# Bundled direction artifacts
+# Video direction artifacts
 
-The customer container embeds these Qwen3-VL text-encoder direction artifacts
-(the Frosty VL plugin's steering vectors):
+These Qwen3-VL text-encoder direction artifacts are supplied separately in
+licensed deployments. The public Git repository excludes the `.npy` files.
+Place the authorized files here before building that deployment's container;
+a public clone alone cannot pass the default video preflight.
 
 | File | Purpose | SHA-256 |
 |---|---|---|
@@ -15,7 +17,7 @@ and dtype `float32`.
 at `text_encoder.model.language_model.layers[40:50].self_attn.o_proj` in memory.
 It never writes modified weights to the customer's base pipeline.
 
-Both bundled L50 directions are valid 5120-wide Qwen3-VL text-encoder
+Both recorded L50 directions are valid 5120-wide Qwen3-VL text-encoder
 directions. Their checksums are recorded above and are not claimed to match any
 other build's provenance; that distinction is labeled explicitly rather than
 papered over.

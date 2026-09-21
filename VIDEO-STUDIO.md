@@ -1,5 +1,11 @@
 # Frosty VL video workspace
 
+[Overview](README.md) · [Video installation](docs/VIDEO-SETUP.md) · [Agent instructions](AGENT-INSTRUCTIONS.md)
+
+![Frosty video workspace](assets/frosty-video-workspace.jpg)
+
+*Current interface captured with a fixture backend; no live VL generation is shown.*
+
 Open `/video` in Frosty Studio. Image and video share navigation, job-oriented
 workflows and recoverable galleries. Both use the same dark Frosty palette, ice-cyan
 accents, mint action buttons and shared brand tokens in `ui/studio_theme.css`. See [deployment](CUSTOMER-INSTALL.md) for an
@@ -29,6 +35,10 @@ Your direction, scene order and settings are saved in this browser. Reference
 image bytes are not stored in browser drafts; reattach them after refreshing.
 
 ## Scene Lab
+
+![Frosty Scene Lab: reorder scenes and configure continuity](assets/frosty-scene-lab.jpg)
+
+*Interface preview with the built-in example scene directions.*
 
 Build 2–8 scenes. Reorder, duplicate or remove shots and choose each duration.
 Match-cut continuity uses the previous clip's final frame for the next scene.

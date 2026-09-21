@@ -1,5 +1,12 @@
 # Qwen Image 2.1 Studio
 
+**New installation? Follow the [complete Windows setup walkthrough](docs/WINDOWS-IMAGE-SETUP.md).**
+[Overview](README.md) · [Setup chooser](GETTING-STARTED.md) · [Agent instructions](AGENT-INSTRUCTIONS.md)
+
+![Frosty Image workspace](assets/frosty-image-workspace.jpg)
+
+*Interface preview using a local fixture, not a generated-artwork showcase.*
+
 Qwen Image 2.1 is the primary image workspace in Frosty Studio.
 It uses the official Qwen Image 2.1 Diffusers pipeline and local weights. The
 existing video engines and their model loaders remain separate.
@@ -54,6 +61,8 @@ Custom dimensions accept multiples of 32, from 256 to 4096, up to 4.5 MP.
 Keep `Qwen-Image-2.1-PE-T2I` and `Qwen-Image-2.1-PE-I2I` next to the image model
 directory. Each checkpoint must include its own `system_prompt.txt` and a
 verified download receipt (`download-status.json` with `state: completed`).
+The [download walkthrough](docs/WINDOWS-IMAGE-SETUP.md#3-download-and-verify-the-selected-checkpoints)
+creates this marker only after checksum verification.
 The adapter uses the official sampling profiles and parsing code, with NF4
 weight loading. Model reasoning is not displayed or saved.
 
@@ -64,6 +73,9 @@ resident in the 16 GB GPU; switching adds load time. Cancellation is checked
 between generated tokens and after checkpoint loading.
 
 ## Native Windows/CUDA profile
+
+The following is a runtime reference. For cloning, isolated environments, verified
+model downloads and first-run checks, use [the installation walkthrough](docs/WINDOWS-IMAGE-SETUP.md).
 
 The integration was developed against PyTorch 2.14.0 + CUDA 13.0,
 torchvision 0.29.0, Python 3.12, and the versions in `requirements-image.txt`.
@@ -95,7 +107,6 @@ In a second terminal, point the Studio at the image engine profile:
 
 ```powershell
 $env:FVL_ENGINES_FILE = 'config/qwen-image-engines.json'
-$env:FVL_GALLERY_DIR = 'D:\AI\FrostyImage21\outputs'
 $env:FVL_UI_HOST = '127.0.0.1'
 $env:FVL_UI_PORT = '8890'
 python ui/webui.py
@@ -115,8 +126,8 @@ output folder; it owns the image files and `.frosty-trash` journal.
 
 Both workspaces can coexist without loading both models on the same GPU.
 
-SGLang's September 20 Qwen Image 2.1 recipe targets CUDA on Linux and has no
-verified published container for this integration. Its smallest tested recipe
+In the September 20, 2026 evaluation, SGLang's Qwen Image 2.1 recipe targets CUDA on Linux and had no
+verified published container for this integration at that time. Its smallest tested recipe
 is an RTX 4090 with 22.7 GiB request-phase VRAM. This profile uses Qwen's
 recommended Diffusers pipeline with a native Windows NF4 loader instead.
 
