@@ -55,8 +55,10 @@ benchmark is represented by this screenshot.*
   detail, context caching and one to four sequential variations.
 - **A library you can recover.** Download, reuse, delete one or many images,
   Undo, and restore from Trash with metadata retained. No permanent-purge command.
-- **Optional image DWM.** A matching, separately supplied direction bank enables
-  runtime controls. Omitted MCP strength preserves the engine's default.
+- **Image DWM runtime bank included.** The compact 1.2 MB inference vectors enable
+  runtime controls with the [documented profile](server/data/QWEN-IMAGE-DWM.md).
+  Calibration pairs and captures stay private. Omitted MCP strength preserves
+  the engine's default; strength 0 is the clean baseline.
 
 Read the [Image guide](IMAGE-STUDIO.md) for parameters, limits, persistence and API
 examples. Start installation with the [Windows walkthrough](docs/WINDOWS-IMAGE-SETUP.md).
@@ -187,6 +189,7 @@ See the [official Qwen Image 2.1 model](https://huggingface.co/Qwen/Qwen-Image-2
 
 Read [LICENSE](LICENSE), [NOTICE](NOTICE) and [LICENSE-NOTICE.md](LICENSE-NOTICE.md)
 for the repository's existing distribution terms. Model licenses remain separate.
-The public Git clone includes no base-model weights, image DWM bank, or licensed
-video direction `.npy` files. The vendored Qwen enhancer adapter has its own
+The public Git clone includes only the compact image DWM runtime vectors and
+their manifest, not calibration data, base-model weights or licensed video
+direction `.npy` files. The vendored Qwen enhancer adapter has its own
 [provenance and license](server/vendor/qwen_pe/PROVENANCE.md).

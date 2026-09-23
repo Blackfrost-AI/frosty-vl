@@ -1,0 +1,27 @@
+{
+  "schema": "blackfrost.qwen_image21_runtime_bank.v1",
+  "file": "qwen-image21-dwm.safetensors",
+  "bytes": 1180160,
+  "sha256": "0f124108244a2ed289eb0f6db9fe9ece78125a1974f241f086933350457c8fef",
+  "dtype": "F32",
+  "tensor_shape": [
+    36,
+    4096
+  ],
+  "tensors": [
+    "direction.attention_output_last",
+    "direction.mlp_output_last"
+  ],
+  "capture_pairs_count": 250,
+  "source_revision": "b3179ad355be050328e483a9dfdd9e60cd62adfa",
+  "compatible_model_revisions": [
+    "b3179ad355be050328e483a9dfdd9e60cd62adfa",
+    "790c92633540aa0cb11d9abf19eb46d861714758"
+  ],
+  "profile": {
+    "layers": "19-24",
+    "attention_alpha": 1.0,
+    "mlp_alpha": 1.0,
+    "default_scale": 0.5
+  }
+}

@@ -20,10 +20,12 @@ outputs/
 *.safetensors
 *.gguf
 
-# Proprietary IP — direction vectors are delivered to licensed customers,
-# NOT committed to the public repo. Remove these lines only to publish them.
+# Keep other direction artifacts private. Only the explicitly published
+# Qwen Image inference bank and its manifest are allowed below.
 server/data/*.npy
 server/data/*.json
+!server/data/qwen-image21-dwm.safetensors
+!server/data/qwen-image21-dwm.json
 
 # ComfyUI node vectors — delivered to licensed customers, not public
 comfyui/data/*.npy

@@ -145,17 +145,30 @@ setup, not every time the engine answers health.
 
 ## 4. Start the engine — terminal A
 
+First verify the bundled bank against its [checksum manifest](../server/data/qwen-image21-dwm.json)
+using the [PowerShell check](../server/data/QWEN-IMAGE-DWM.md#verify-the-bank).
+The DWM values below are the experimental profile for a new install; preserve
+your existing profile when upgrading.
+
 ```powershell
 Set-Location C:\AI\frosty-vl
 $env:FVL_IMAGE_MODEL_DIR = 'C:\Models\Qwen-Image-2.1'
 $env:FVL_IMAGE_OUTPUT_DIR = 'C:\AI\FrostyOutputs\images'
 $env:FVL_IMAGE_QUANTIZATION = 'nf4'
+$env:FVL_IMAGE_DWM_BANK = (Resolve-Path '.\server\data\qwen-image21-dwm.safetensors').Path
+$env:FVL_IMAGE_DWM_LAYERS = '19-24'
+$env:FVL_IMAGE_DWM_ATTN_ALPHA = '1.0'
+$env:FVL_IMAGE_DWM_MLP_ALPHA = '1.0'
+$env:FVL_IMAGE_DWM_DEFAULT_SCALE = '0.5'
 C:\AI\frosty-image-venv\Scripts\python.exe -m uvicorn server.qwen_image_serve:app --host 127.0.0.1 --port 8899 --workers 1
 ```
 
 Leave this terminal open. Initial loading takes time. One worker owns the queue,
 GPU pipeline, library and Trash journal. Do not use multiple Uvicorn workers or
 point two engine processes at the same output directory.
+
+Choose strength **0** in Studio for a clean baseline. No calibration pairs or
+capture files are required to use the bank.
 
 `nf4` quantizes the text encoder and transformer during loading with BF16 compute;
 it does not rewrite source model files. `bf16-offload` is an alternative for
@@ -217,9 +230,9 @@ just the initial job ID. See [Image API](../IMAGE-STUDIO.md#image-api) for outpu
 - **WireGuard/SSH:** use [remote access](../GETTING-STARTED.md#remote-use). Native
   Studio binding is `FVL_UI_HOST`; the raw engine remains loopback. No network
   access rule or tunnel is created automatically.
-- **Image DWM:** optional and not included in the public clone. Follow the
-  [Image DWM description](../IMAGE-STUDIO.md#experimental-blackfrost-image-dwm)
-  only with a matching direction bank; preserve an existing operator profile.
+- **Image DWM:** the runtime bank is included and the launch block above enables
+  its profile. See the [bank guide](../server/data/QWEN-IMAGE-DWM.md) for verification,
+  Linux settings and clean-mode operation. Preserve an existing operator profile.
 
 ## Stop, restart and update
 

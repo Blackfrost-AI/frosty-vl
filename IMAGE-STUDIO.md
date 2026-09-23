@@ -86,12 +86,19 @@ python -m pip install torch==2.14.0 torchvision==0.29.0 --index-url https://down
 python -m pip install -r requirements-image.txt
 ```
 
-Set these in the engine terminal, then run one Uvicorn worker:
+From the checkout root, first [verify the bundled bank](server/data/QWEN-IMAGE-DWM.md#verify-the-bank).
+Set these in the engine terminal, then run one Uvicorn worker. Preserve an existing
+DWM profile when upgrading:
 
 ```powershell
 $env:FVL_IMAGE_MODEL_DIR = 'D:\Models\Qwen-Image-2.1'
 $env:FVL_IMAGE_OUTPUT_DIR = 'D:\AI\FrostyImage21\outputs'
 $env:FVL_IMAGE_QUANTIZATION = 'nf4'
+$env:FVL_IMAGE_DWM_BANK = (Resolve-Path '.\server\data\qwen-image21-dwm.safetensors').Path
+$env:FVL_IMAGE_DWM_LAYERS = '19-24'
+$env:FVL_IMAGE_DWM_ATTN_ALPHA = '1.0'
+$env:FVL_IMAGE_DWM_MLP_ALPHA = '1.0'
+$env:FVL_IMAGE_DWM_DEFAULT_SCALE = '0.5'
 python -m uvicorn server.qwen_image_serve:app --host 127.0.0.1 --port 8899 --workers 1
 ```
 
@@ -141,16 +148,23 @@ and MLP writer outputs. This is algebraically equivalent to the Frosty VL row
 projection for bias-free writers, but is compatible with the NF4 runtime and
 never edits or requantizes model weights.
 
+The compact [runtime bank and checksum manifest](server/data/QWEN-IMAGE-DWM.md)
+are included in Git clones and source ZIPs. They contain only the two inference
+direction tensors; the 250 calibration pairs and individual captures are not
+required or distributed. Verify the checksum before starting the engine.
+
 Configure the profile at engine start with `FVL_IMAGE_DWM_BANK`,
 `FVL_IMAGE_DWM_LAYERS`, `FVL_IMAGE_DWM_ATTN_ALPHA`, and
 `FVL_IMAGE_DWM_MLP_ALPHA`. Requests may set `dwm_scale` from 0 (clean A/B
 baseline) through 2. The default comes from `FVL_IMAGE_DWM_DEFAULT_SCALE` and
-is 0 unless explicitly configured. Health and PNG sidecars record the active
-profile and request scale.
+is 0 unless explicitly configured. The launch example sets the bundled profile
+to layers 19–24, attention/MLP alpha 1.0 and default strength 0.5. Preserve existing
+operator settings when upgrading. Health and PNG sidecars record the active
+profile and request scale. The profile is experimental, not a proven optimum.
 
 The UI reads the enabled state and default from the image engine. DWM does not
-alter the separate official prompt enhancers. Supply a matching direction bank;
-no image DWM weights are bundled.
+alter the separate official prompt enhancers. Strength 0 is the clean baseline;
+clearing `FVL_IMAGE_DWM_BANK` before engine startup disables the hooks completely.
 
 The browser-facing API accepts JSON at `POST /api/images/jobs`:
 

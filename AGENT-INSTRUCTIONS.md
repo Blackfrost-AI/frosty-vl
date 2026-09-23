@@ -57,8 +57,9 @@ Follow [docs/WINDOWS-IMAGE-SETUP.md](docs/WINDOWS-IMAGE-SETUP.md) in order.
 - Verify downloads at a pinned revision before writing `download-status.json`.
   Merely creating a completion marker does not verify any files.
 - Set `FVL_IMAGE_MODEL_DIR`, `FVL_IMAGE_OUTPUT_DIR` and quantization explicitly.
-  Preserve an existing DWM bank/layer/strength configuration; a new setup can run
-  without an image DWM bank.
+  Preserve an existing DWM bank/layer/strength configuration. For a fresh install,
+  use the [bundled runtime bank and profile](server/data/QWEN-IMAGE-DWM.md) from
+  the setup guide; verify its checksum. Use request strength 0 for a clean test.
 - Run one Uvicorn worker for the image engine. A second terminal runs Studio
   using `config/qwen-image-engines.json`. Never reuse the video Docker recipe.
 - Disable automatic enhancement for the first base-only image test. Enable it

@@ -15,8 +15,9 @@ ask only for missing information that affects the requested installation.
 - `requirements-image.txt`, `requirements.txt` and `requirements-mcp.txt` target
   different environments. Do not merge them into an existing working CUDA env.
 - The Docker Compose file is the modular video profile. It is not an Image installer.
-- Public clones have no base weights, image DWM bank or licensed video `.npy`
-  direction artifacts. Never synthesize substitutes or claim they are bundled.
+- Public clones include the compact Qwen Image DWM runtime bank and manifest in
+  `server/data/`. They contain no calibration pairs, per-pair captures, base
+  weights or licensed video `.npy` artifacts. Never synthesize missing artifacts.
 - Video compatibility requires the loader's actual modular pipeline/component
   contract; a Qwen3-VL encoder name alone does not establish compatibility.
 

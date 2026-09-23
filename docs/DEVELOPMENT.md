@@ -99,7 +99,10 @@ component, expected/actual behavior, source commit and a minimal sanitized examp
 For a change, describe the user-visible behavior and relevant checks. Separate
 implemented features from roadmap ideas and tested hardware from estimates.
 
-Do not commit secrets, personal media, model weights, local receipts or licensed
-direction files. Review screenshots for private browser tabs and account details.
+Do not commit secrets, personal media, model weights, local receipts, calibration
+pairs, per-pair captures or licensed video direction files. The explicitly
+published `server/data/qwen-image21-dwm.safetensors` inference bank and its
+manifest are the narrow exception for image DWM vectors. Review screenshots for
+private browser tabs and account details.
 Read the repository's existing [LICENSE](../LICENSE), [NOTICE](../NOTICE), and
 [distribution notice](../LICENSE-NOTICE.md) before contributing or redistributing.

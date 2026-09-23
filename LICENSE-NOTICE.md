@@ -5,6 +5,10 @@
 This kit contains only Blackfrost's serving code and its bundled direction
 vectors — together, "the plugin." It ships **no model weights of any kind.**
 
+The public clone includes the compact Qwen Image 2.1 inference bank at
+`server/data/qwen-image21-dwm.safetensors` and its manifest. Calibration pairs,
+per-pair activation captures and licensed video direction files are not included.
+
 ## How the plugin works
 
 Frosty VL is a persona-steering plugin for Qwen3-VL text encoders. At runtime
